@@ -716,6 +716,7 @@ There are a couple useful tools to interact with **NetworkManager**.
 | ------- | -------------------- |
 | `nmcli` | command line utility |
 | `nmtui` | GUI utility          |
+
 Permission to modify settings with **NetworkManager** are applied via **dbus**.
 Non-privileged users that are logged in on the console **can** change network settings.
 Non-privileged users that are logged in on via ssh **can not** change network settings.
