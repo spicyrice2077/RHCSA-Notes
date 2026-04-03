@@ -15,7 +15,7 @@ You can have free access to RHEL (unsupported) for up to 16 instances of RHEL (u
 Linux servers need 3 different areas for storing data
 -  small partition for linux kernel
 -  UEFI bootlogger files
-- `/root` - OS essential files
+- `/` - OS essential files
 # Using the Command Line
 `bash` is often the default shell
 `terminal` is an environment which runs the shell
