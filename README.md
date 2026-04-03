@@ -1,7 +1,3 @@
-# RHCSA-Notes
-Notes alligned with Red Hat Certified System Administrator 10 exam objectives
-
-[Video Series](https://learning.oreilly.com/search/?q=author%3A%22Sander%20van%20Vugt%22&type=on-demand-course&order_by=relevance&rows=100&language=en)
 # Understanding Red Hat Enterprise Linux
 ### Basics
 The big thing about RHEL is support. The Red Hat company can provide support for paying companies.
@@ -764,3 +760,125 @@ You can launch by running `nmtui` on the terminal.
 # Daily Administration Tasks
 ## Managing Software
 In the early days, software was packaged as a `tarball`. The process to install was extracting the tarball and following the instructions.
+The `Red Hat Package Manager` (RPM) introduced packages on Red Hat.
+- These Packages contained metadata, with information about the dependencies.
+- A database was also included to keep track of the installed packages - making updates much easier.
+- Unfortunately, you still needed to resolve dependencies manually. 
+
+The `Yellowdog Update Manager` (YUM) was later introduced and allowed packages to be installed from repositories - as well as *automagically* handling dependencies!
+
+The `Dandified Yum` (DNF) was a internal improvement of YUM and used the same approach.
+
+The new kid on the flock is `Flatpak`. It provides an isolated container for an application to run in. This is largely for desktop application use.
+### RPM Packages
+An RPM contains a compressed archive as well as package metadata. 
+- The old method of installing these was with `rpm`, but it makes more sense to use `dnf` these days.
+- The `rpm` command can be used to show installed packages as well as related data.
+```bash
+student@rhcsaserver:~$ rpm -qa
+libgcc-14.3.1-2.1.el10.x86_64
+fonts-filesystem-2.0.5-18.el10.noarch
+google-noto-fonts-common-20240401-5.el10.noarch
+google-noto-sans-vf-fonts-20240401-5.el10.noarch
+redhat-text-vf-fonts-4.1.0-1.el10.noarch
+...
+```
+You can use `rpm2cpio *.rpm` to extract/show contents of a package.
+### Setting up Repository Access
+
+> [!WARNING] 
+> You may not have repo access by default on the exam and may need to set it up.
+
+A repository is a collection of `RPM` package files with an index that contains the repo contents.
+These are often offered through websites, but it is also possible to create local repos.
+
+Normally, a RHEL system should be registered with `subscription-manager` to access cloud repositories managed by Red Hat.
+
+To ensure packages have not been tampered with, `GPG` keys can be used. 
+A repository GPG key is used to sign all packages before installing.
+To make sure this is possible, you need to ensure the local GPG key is present.
+For the exam, you can disable it by setting `gpgcheck=0` in the repo client file.
+
+To access repos offered via subscription manager, use `dnf config-manager --enable name-of-repo`.
+Third party repos can be added using a repo file in `/etc/yum.repos.d`... or using `dnf config-manager`
+```bash
+student@rhcsaserver:~$ cd /etc/yum
+yum/         yum.repos.d/ 
+
+student@rhcsaserver:~$ cd /etc/yum.repos.d/
+
+student@rhcsaserver:/etc/yum.repos.d$ ls
+redhat.repo
+
+student@rhcsaserver:/etc/yum.repos.d$ cat redhat.repo 
+#
+# Certificate-Based Repositories
+# Managed by (rhsm) subscription-manager
+#
+# *** This file is auto-generated.  Changes made here will be overwritten. ***
+# *** Use "subscription-manager repo-override --help" if you wish to make changes. ***
+#
+# If this file is empty and this system is subscribed, consider
+# running "dnf repolist" to refresh the available repositories.
+#
+```
+You can also run the command `dnf config-manager --add-repo="file:///repo/AppStream"`
+### Managing packages with dnf
+`dnf` is fairly intuitive
+
+| Command                 | Description                            |
+| ----------------------- | -------------------------------------- |
+| `dnf list appname`      | lists installed and available packages |
+| `dnf search appname`    | searches for an app by name            |
+| `dnf search all string` | searches description as well           |
+| `dnf info package`      | info about a package                   |
+### Using dnf Groups
+A dnf group is a collection of packages
+
+| Item                                | Description                                                                                                 |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Regular group                       | Just a collection of packages                                                                               |
+| Environment group                   | Used to install a specific usage pattern                                                                    |
+| `dnf group list`                    | Command to print out a list of groups                                                                       |
+| `dnf group list hidden`             | Command to show some extras                                                                                 |
+| `dnf group info "<groupname>"`      | Command to see packages within a group<br>(They are marked as **mandatory**, **default**, and **optional**) |
+| `dnf group install`                 | Command to install mandatory and default packages                                                           |
+| `dnf group install --with-optional` | Self explanatory                                                                                            |
+|                                     |                                                                                                             |
+### Managing dnf Updates and History
+All transactions the dnf performs are logged to `/var/log/dnf.rpm.log`.
+The command `dnf history` can be used for a summary of all installation and removal transactions.
+The command `dnf history undo n` can undo a specific transaction.
+### Using subscription-manager
+In order to properly use Red Hat Enterprise Linux, you'll need to register the system and attach a subscription. Before doing so, you'll have no repository access. If you can't register RHEL, the only option is to use self provided repositories.
+
+To register, use `subscription-manager register`. After which, you'll be prompted to enter a username for which the subscription is connected to. To un-register, use `subscription-manager unregister`.
+
+After registering, **entitlement certificates** are created.
+- `/etc/pki/product` indicates the installed RHEL products.
+- `/etc/pki/consumer` identifies the Red Hat account for registration.
+Use the `rct` command to check current entitlements.
+### Managing Software with Flatpak
+You can install flatpak with the command `dnf install -y flatpak`.
+After install, `flatpak --version` can be used to show the current install.
+To get access to the default REHL flatpak **remote**, you must authenticate using `podman login registry.redhat.io`.
+Another **remote** is flathub which is located at https://flathub.org, which does not require authentication to use.
+The list of remotes is located in `/etc/flatpak/remotes.d`.
+You an add more remotes with a command such as:
+```bash
+flatpak remote-add --if-not-exists fedora oci+https://registry/fedoraproject.org
+```
+
+
+| Command                             | Description                                                                  |
+| ----------------------------------- | ---------------------------------------------------------------------------- |
+| `flatpak search <string>`           | Search for a flatpak to find a matching app                                  |
+| `flatpak install <app>`             | Install a specific app. If multiple match, you'll be prompted to choose one. |
+| `flatpak install -u <app>`          | Install the app, but only for the current user.                              |
+| `flatpak list`                      | Show apps currently installed.                                               |
+| `flatpak info`                      | Get flatpak details                                                          |
+| `flatpak update`                    | Update an app                                                                |
+| `flatpak mask`                      | Keep an app at a specific version by preventing updates.                     |
+| `flatpak mask --remove`             | Undo the above command.                                                      |
+| `flatpak uninstall [--delete-data]` | Remove an app                                                                |
+## Monitoring Activity
