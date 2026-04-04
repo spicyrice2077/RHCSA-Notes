@@ -883,3 +883,243 @@ flatpak remote-add --if-not-exists fedora oci+https://registry/fedoraproject.org
 | `flatpak mask --remove`             | Undo the above command.                                                      |
 | `flatpak uninstall [--delete-data]` | Remove an app                                                                |
 ## Monitoring Activity
+### Exploring Jobs and Processes
+All tasks are started as processes.
+Processes have a `PID` for which they can be managed.
+Some processes are starting multiple threads. Individual threads cannot be managed.
+Threads started from a shell can be managed as jobs.
+Shell jobs can be started in the foreground or background.
+### Managing Shell Jobs
+You run a command as a job in the background by doing the following
+```bash
+<command> &
+```
+You can also move a currently running job to the background with
+```bash
+Crtl + Z
+```
+and then
+```bash
+bg
+```
+### Understanding Process States
+
+| Main Process States | Description                                                                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Running (R)`       | A process in the running state is either:<br><br>- Currently executing on the CPU<br>- Ready to run and waiting for CPU time                           |
+| `Sleeping (S)`      | A sleeping process is waiting for an event to complete, such as:<br><br>- Input/Output operation<br>- Signal receipt<br>- Resource availability        |
+| `Stopped (T)`       | A stopped process has been paused by:<br><br>- A user signal (SIGSTOP)<br>- Debugging operations                                                       |
+| `Zombie (Z)`        | A zombie process is:<br><br>- A terminated process<br>- Still has an entry in the process table<br>- Waiting for its parent to collect its exit status |
+| `Dead (X)`          | A dead process is:<br><br>- Completely terminated<br>- Being removed from the process table                                                            |
+#### Common Process State Transitions
+`Created → Running`
+- Process is loaded into memory
+- Scheduled for execution
+
+`Running → Sleeping`
+- Process waits for resources
+- Voluntarily yields CPU
+
+`Sleeping → Running`
+- Required resources become available
+- Process is scheduled again
+
+`Running → Stopped`
+- Receives SIGSTOP signal
+- User initiates debugging
+
+`Running → Zombie`
+- Process terminates
+- Parent hasn’t collected exit status
+### Process Information with `ps`
+One of the most useful ps commands to get an overview of all running processes is:
+```bash
+# Anything in [] is a kernel thread.
+student@rhcsaserver:~$ ps aux
+USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root           1  4.8  0.7  50512 41996 ?        Ss   18:00   0:00 /usr/lib/systemd/systemd ...
+root           2  0.0  0.0      0     0 ?        S    18:00   0:00 [kthreadd]
+root           3  0.0  0.0      0     0 ?        S    18:00   0:00 [pool_workqueue_release]
+root           4  0.0  0.0      0     0 ?        I<   18:00   0:00 [kworker/R-rcu_gp]
+root           5  0.0  0.0      0     0 ?        I<   18:00   0:00 [kworker/R-sync_wq]
+root           6  0.0  0.0      0     0 ?        I<   18:00   0:00 [kworker/R-slub_flushwq]
+root           7  0.0  0.0      0     0 ?        I<   18:00   0:00 [kworker/R-netns]
+...
+student     3344 11.2  3.7 3005300 214484 ?      Ssl  18:01   0:00 /usr/bin/ptyxis --gapplication-service
+student     3351  0.0  0.1 377772  6888 ?        Ssl  18:01   0:00 /usr/libexec/ptyxis-agent --socket..
+student     3369  0.0  0.0    976   588 ?        S    18:01   0:00 catatonit -P
+student     3421  0.0  0.0 230168  5636 pts/0    Ss   18:01   0:00 /usr/bin/bash
+student     3466  0.0  0.0 230704  4092 pts/0    R+   18:01   0:00 ps aux
+```
+You can show the process forest with some different ps options.
+```bash
+student@rhcsaserver:~$ ps -fax
+    PID TTY      STAT   TIME COMMAND
+      2 ?        S      0:00 [kthreadd]
+      3 ?        S      0:00  \_ [pool_workqueue_release]
+      4 ?        I<     0:00  \_ [kworker/R-rcu_gp]
+      5 ?        I<     0:00  \_ [kworker/R-sync_wq]
+      6 ?        I<     0:00  \_ [kworker/R-slub_flushwq]
+      7 ?        I<     0:00  \_ [kworker/R-netns]
+...
+   3351 ?        Ssl    0:00  |   \_ /usr/libexec/ptyxis-agent --socket-fd=3 --rlimit-nofile=1024
+   3421 pts/0    Ss     0:00  |       \_ /usr/bin/bash
+   3657 pts/0    R+     0:00  |           \_ ps -fax
+   3369 ?        S      0:00  \_ catatonit -P
+...
+```
+### Monitoring Memory Usage
+Linux places as many files as possible into cache, in order to guarantee fast access to the files.
+Because of this, it appears that the memory is saturated (low memory shows available for use).
+Swap is used as an overflow buffer of emulated RAM on disk.
+The kernel will move inactive application memory to swap first.
+Inactive cache memory will just be dropped.
+The `free` command is useful to get an idea of available memory.
+```bash
+student@rhcsaserver:~$ free -h
+               total        used        free      shared  buff/cache   available
+Mem:           5.5Gi       1.4Gi       3.5Gi        34Mi       851Mi       4.0Gi
+Swap:          4.0Gi          0B       4.0Gi
+```
+The following file also contains useful info about memory
+```bash
+student@rhcsaserver:~$ cat /proc/meminfo 
+MemTotal:        5733216 kB
+MemFree:         3640736 kB
+MemAvailable:    4244440 kB
+Buffers:            4300 kB
+Cached:           834652 kB
+SwapCached:            0 kB
+Active:          1571968 kB
+...
+```
+### System Activity with `top`
+This is a useful dashboard to monitor system activity
+```bash
+top - 18:19:46 up 18 min,  2 users,  load average: 0.32, 0.07, 0.02
+Tasks: 275 total,   1 running, 274 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  4.5 us,  1.7 sy,  0.0 ni, 93.9 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st 
+MiB Mem :   5598.8 total,   3541.7 free,   1467.1 used,    852.3 buff/cache     
+MiB Swap:   4096.0 total,   4096.0 free,      0.0 used.   4131.7 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND                                                
+   2573 student   20   0 4919460 366160 130116 S  10.3   6.4   0:14.27 gnome-shell                                            
+   3344 student   20   0 3061608 381620 102784 S   8.3   6.7   0:15.29 ptyxis                                                 
+   2336 root      20   0  157720   4792   4268 S   1.0   0.1   0:00.85 spice-vdagentd                                         
+   2659 student   20   0  606732  11932   6684 S   0.3   0.2   0:00.24 ibus-daemon                                            
+      1 root      20   0   50512  41996  10492 S   0.0   0.7   0:00.96 systemd                                                
+      2 root      20   0       0      0      0 S   0.0   0.0   0:00.00 kthreadd                                               
+      3 root      20   0       0      0      0 S   0.0   0.0   0:00.00 pool_workqueue_release                                 
+      4 root       0 -20       0      0      0 I   0.0   0.0   0:00.00 kworker/R-rcu_gp                                       
+      5 root       0 -20       0      0      0 I   0.0   0.0   0:00.00 kworker/R-sync_wq                                      
+```
+## Managing Processes
+### Terminating processes
+Use `kill <PID>` to send signals such as `SIGTERM` or `SIGKILL`. 
+`killall <process_name>` terminates all instances of a process.
+### Pausing and resuming
+`Ctrl+Z` suspends a foreground process. 
+Use `fg` to resume in the foreground or `bg` to continue in the background.
+### Renicing and prioritizing
+`nice` launches a process with a specified CPU priority.
+`renice` adjusts the priority of running processes to balance CPU allocation.
+You can use `top` and then `r` to renice a PID to a new value.
+Nice Values range from `-20` to `19`. The lower the number, the higher the priority.
+### Manage Tuned Profiles
+You can use the command `tuned` to easily manage system tuning.
+```bash
+student@rhcsaserver:~$ tuned-adm list 
+Available profiles:
+- accelerator-performance     - Throughput performance based tuning with disabled higher latency STOP states
+- aws                         - Optimize for aws ec2 instances
+- balanced                    - General non-specialized tuned profile
+- balanced-battery            - Balanced profile biased towards power savings changes for battery
+- desktop                     - Optimize for the desktop use-case
+- hpc-compute                 - Optimize for HPC compute workloads
+- intel-sst                   - Configure for Intel Speed Select Base Frequency
+- latency-performance         - Optimize for deterministic performance at the cost of increased power consumption
+- network-latency             - Optimize for deterministic performance at the cost of increased power consumption, focused on low latency network performance
+- network-throughput          - Optimize for streaming network throughput, generally only necessary on older CPUs or 40G+ networks
+- optimize-serial-console     - Optimize for serial console use.
+- powersave                   - Optimize for low power consumption
+- throughput-performance      - Broadly applicable tuning that provides excellent performance across a variety of common server workloads
+- virtual-guest               - Optimize for running inside a virtual guest
+- virtual-host                - Optimize for running KVM guests
+Current active profile: virtual-guest
+```
+### Managing User Sessions and Processes
+You can use `ps -u <username>` to show process
+You can also use `pkill -u <username>` to remove processes owned by a specific user.
+```bash
+student@rhcsaserver:~$ ps -u student
+    PID TTY          TIME CMD
+   2442 ?        00:00:00 systemd
+   2446 ?        00:00:00 (sd-pam)
+   2464 ?        00:00:00 gnome-keyring-d
+   2475 tty2     00:00:00 gdm-wayland-ses
+   2481 ?        00:00:00 dbus-broker-lau
+   2488 ?        00:00:00 dbus-broker
+   2493 tty2     00:00:00 gnome-session-b
+   2544 ?        00:00:00 gnome-session-c
+   2548 ?        00:00:00 gnome-session-b
+   2573 ?        00:00:25 gnome-shell
+   2583 ?        00:00:00 gvfsd
+   2589 ?        00:00:00 gvfsd-fuse
+   2618 ?        00:00:00 at-spi-bus-laun
+   2624 ?        00:00:00 dbus-broker-lau
+   2625 ?        00:00:00 dbus-broker
+   2626 ?        00:00:00 at-spi2-registr
+```
+
+Another useful tool is `loginctl`.
+Some example commands:
+```bash
+student@rhcsaserver:~$ loginctl 
+SESSION  UID USER    SEAT  LEADER CLASS         TTY   IDLE SINCE
+      2 1000 student seat0 2422   user          tty2  no   -    
+      3 1000 student -     2442   manager       -     no   -    
+      4    0 root    -     4880   manager-early -     no   -    
+     c2    0 root    -     4864   user-early    pts/1 no   -    
+
+4 sessions listed.
+
+student@rhcsaserver:~$ loginctl list-sessions 
+SESSION  UID USER    SEAT  LEADER CLASS         TTY   IDLE SINCE
+      2 1000 student seat0 2422   user          tty2  no   -    
+      3 1000 student -     2442   manager       -     no   -    
+      4    0 root    -     4880   manager-early -     no   -    
+     c2    0 root    -     4864   user-early    pts/1 no   -    
+
+4 sessions listed.
+
+student@rhcsaserver:~$ loginctl list-users 
+ UID USER    LINGER STATE 
+   0 root    no     active
+1000 student no     active
+
+2 users listed.
+```
+
+```bash
+loginctl [OPTIONS...] COMMAND ...
+
+Send control commands to or query the login manager.
+
+Session Commands:
+  list-sessions            List sessions
+  session-status [ID...]   Show session status
+  show-session [ID...]     Show properties of sessions or the manager
+  activate [ID]            Activate a session
+  lock-session [ID...]     Screen lock one or more sessions
+  unlock-session [ID...]   Screen unlock one or more sessions
+  lock-sessions            Screen lock all current sessions
+  unlock-sessions          Screen unlock all current sessions
+  terminate-session ID...  Terminate one or more sessions
+  kill-session ID...       Send signal to processes of a session
+```
+## Working with Systemd
+### Understanding the Role of Systemd
+It is the first process started after loading the kernel.
+It is used for starting services (ssh, web server, etc...).
+It also starts other units: timers, sockets, sshd, mounting items, etc...
+The primary command used to manage Systemd is `systemctl`.
