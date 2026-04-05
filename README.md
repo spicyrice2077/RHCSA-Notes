@@ -1123,3 +1123,251 @@ It is the first process started after loading the kernel.
 It is used for starting services (ssh, web server, etc...).
 It also starts other units: timers, sockets, sshd, mounting items, etc...
 The primary command used to manage Systemd is `systemctl`.
+### Exploring Systemd Units
+`Service` units are used to start processes (These are the most important). 
+`Socket` units monitor activity on a port and start the corresponding service unit when needed.
+`Timer` units are used to start services periodically.
+`Path` units can start service units when activity is detected in the file system.
+`Mount` units are used to mount file systems.
+There are more units, but they are not as relevant for the RHCSA exam.
+You can use `cat` in combination with `systemctl` to get info on a unit.
+```bash
+student@rhcsaserver:~$ systemctl cat sshd.service 
+# /usr/lib/systemd/system/sshd.service
+[Unit]
+Description=OpenSSH server daemon
+Documentation=man:sshd(8) man:sshd_config(5)
+After=network.target sshd-keygen.target
+Wants=sshd-keygen.target
+# Migration for Fedora 38 change to remove group ownership for standard host keys
+# See https://fedoraproject.org/wiki/Changes/SSHKeySignSuidBit
+Wants=ssh-host-keys-migration.service
+
+[Service]
+Type=notify
+EnvironmentFile=-/etc/sysconfig/sshd
+ExecStart=/usr/sbin/sshd -D $OPTIONS
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
+Restart=on-failure
+RestartSec=42s
+
+[Install]
+WantedBy=multi-user.target
+
+```
+You can list all unit files with the following command:
+```bash
+student@rhcsaserver:~$ systemctl list-unit-files 
+UNIT FILE                                                                 STATE           PRESET  
+proc-sys-fs-binfmt_misc.automount                                         static          -       
+-.mount                                                                   generated       -       
+boot.mount                                                                generated       -       
+dev-hugepages.mount                                                       static          -       
+dev-mqueue.mount                                                          static          -       
+proc-sys-fs-binfmt_misc.mount                                             disabled        disabled
+run-vmblock\x2dfuse.mount                                                 disabled        disabled
+sys-fs-fuse-connections.mount                                             static          -       
+...
+```
+### Managing Systemd Services
+After installing **RHEL**, many units are enabled by default.
+The following command can be used to check the status of units.
+`systemctl status <unit name>`
+```bash
+student@rhcsaserver:~$ systemctl status sshd
+● sshd.service - OpenSSH server daemon
+     Loaded: loaded (/usr/lib/systemd/system/sshd.service; enabled; preset: enabled)
+     Active: active (running) since Sat 2026-04-04 14:43:51 CDT; 9min ago
+ Invocation: f631687479974716bec5ff037da02d60
+       Docs: man:sshd(8)
+             man:sshd_config(5)
+   Main PID: 1269 (sshd)
+      Tasks: 1 (limit: 35471)
+     Memory: 2.3M (peak: 2.5M)
+        CPU: 5ms
+     CGroup: /system.slice/sshd.service
+             └─1269 "sshd: /usr/sbin/sshd -D [listener] 0 of 10-100 startups"
+
+Apr 04 14:43:51 rhcsaserver.example.com systemd[1]: Starting sshd.service - OpenSSH server daemon...
+Apr 04 14:43:51 rhcsaserver.example.com sshd[1269]: Server listening on 0.0.0.0 port 22.
+Apr 04 14:43:51 rhcsaserver.example.com systemd[1]: Started sshd.service - OpenSSH server daemon.
+Apr 04 14:43:51 rhcsaserver.example.com sshd[1269]: Server listening on :: port 22.
+
+```
+Common commands to be used:
+
+| Command                         | Description                                           |
+| ------------------------------- | ----------------------------------------------------- |
+| `systemctl status <unit name>`  | Get the current status                                |
+| `systemctl start <unit name>`   | Start the unit                                        |
+| `systemctl enable <unit name>`  | Make sure the unit auto starts at system boot         |
+| `systemctl stop <unit name>`    | Stop the unit                                         |
+| `systemctl restart <unit name>` | Restart the unit                                      |
+| `systemctl disable <unit name>` | Make sure the unit does not auto start at system boot |
+### Modifying Systemd Unit Configuration
+Default system-provided systemd unit files are in `/usr/lib/systemd/system`.
+You should not edit these.
+```bash
+student@rhcsaserver:/usr/lib/systemd/system$ ls -la
+total 1780
+drwxr-xr-x. 35 root root 20480 Mar 15 20:27  .
+drwxr-xr-x. 18 root root  4096 Mar 15 20:27  ..
+-rw-r--r--.  1 root root  1964 Apr 24  2025  accounts-daemon.service
+-rw-r--r--.  1 root root   480 Jun 30  2025  alsa-restore.service
+-rw-r--r--.  1 root root   465 Jun 30  2025  alsa-state.service
+-rw-r--r--.  1 root root   275 Oct 28  2024  arp-ethers.service
+-rw-r--r--.  1 root root   274 Jun 29  2025  atd.service
+-rw-r--r--.  1 root root  1966 Apr 10  2025  auditd.service
+...
+```
+Custom units are in `/etc/systemd/system`.
+```bash
+student@rhcsaserver:/etc/systemd/system$ ls -la
+total 16
+drwxr-xr-x. 14 root root 4096 Mar 15 20:28  .
+drwxr-xr-x.  5 root root   47 Mar 15 20:26  ..
+drwxr-xr-x.  2 root root   31 Mar 15 20:26  bluetooth.target.wants
+lrwxrwxrwx.  1 root root   37 Mar 15 20:26  ctrl-alt-del.target -> /usr/lib/systemd/system/reboot.target
+lrwxrwxrwx.  1 root root   41 Mar 15 20:26  dbus-org.bluez.service -> /usr/lib/systemd/system/bluetooth.service
+lrwxrwxrwx.  1 root root   41 Mar 15 20:27  dbus-org.fedoraproject.FirewallD1.service -> /usr/lib/systemd/system/firewalld.service
+lrwxrwxrwx.  1 root root   44 Mar 15 20:26  dbus-org.freedesktop.Avahi.service -> /usr/lib/systemd/system/avahi-daemon.service
+lrwxrwxrwx.  1 root root   44 Mar 15 20:26  dbus-org.freedesktop.ModemManager1.service -> /usr/lib/systemd/system/ModemManager.service
+...
+```
+Run-time automatically generated unit files are in `/run/systemd`.
+```bash
+student@rhcsaserver:/run/systemd$ ls -la
+total 0
+drwxr-xr-x. 20 root root  580 Apr  4 14:54 .
+drwxr-xr-x. 48 root root 1240 Apr  4 14:43 ..
+drwxr-xr-x.  2 root root   40 Apr  4 14:43 ask-password
+srw-------.  1 root root    0 Apr  4 14:43 coredump
+drwxr-xr-x.  6 root root  260 Apr  4 14:43 generator
+dr-xr-xr-x.  3 root root  160 Apr  4 14:43 inaccessible
+drwxr-xr-x.  2 root root   40 Apr  4 14:43 incoming
+drwxr-xr-x.  2 root root  320 Apr  4 14:44 inhibit
+srw-------.  1 root root    0 Apr  4 14:43 io.systemd.BootControl
+srw-rw-rw-.  1 root root    0 Apr  4 14:43 io.systemd.Credentials
+srw-rw-rw-.  1 root root    0 Apr  4 14:43 io.systemd.Hostname
+srw-rw-rw-.  1 root root    0 Apr  4 14:43 io.systemd.ManagedOOM
+srw-------.  1 root root    0 Apr  4 14:43 io.systemd.sysext
+...
+```
+For custom configs, use `systemctl edit unit.service` to edit unit files. 
+You can use `systemctl show` for available parameters.
+```bash
+student@rhcsaserver:/run/systemd$ systemctl show sshd.service 
+Type=notify
+ExitType=main
+Restart=on-failure
+RestartMode=normal
+NotifyAccess=main
+RestartUSec=42s
+RestartSteps=0
+RestartMaxDelayUSec=infinity
+...
+```
+### Managing Unit Dependencies
+The following command is a good start to view dependencies.
+```bash
+student@rhcsaserver:/run/systemd$ systemctl list-dependencies 
+default.target
+● ├─accounts-daemon.service
+● ├─gdm.service
+○ ├─nvmefc-boot-connections.service
+● ├─rtkit-daemon.service
+● ├─switcheroo-control.service
+○ ├─systemd-update-utmp-runlevel.service
+● ├─tuned-ppd.service
+● ├─udisks2.service
+● ├─upower.service
+● └─multi-user.target
+●   ├─atd.service
+○   ├─audit-rules.service
+●   ├─auditd.service
+●   ├─avahi-daemon.service
+...
+```
+If you add the following to a unit config, then you can add dependencies.
+```bash
+student@rhcsaserver:/run/systemd$ systemctl edit sshd.service 
+-----------------------------------------------------------------
+### Editing /etc/systemd/system/sshd.service.d/override.conf
+### Anything between here and the comment below will become the contents of the drop-in file
+[Unit]
+Requires=vsftpd.service
+
+### Edits below this comment will be discarded
+....
+```
+What the above does is essentially make any services under "Requires" auto-start when the dependent service starts up.
+### Masking Services
+Some units cannot work simultaneously on the same system. (Example: `nginx` and `http`)
+You can prevent admins from accidentally starting a conflicting unit by using `systemctl mask`. 
+This essentially just links a unit to `/dev/null` so that it can't start. The comman `systemctl unmask` will undo that change.
+```bash
+student@rhcsaserver:/run/systemd$ systemctl mask sshd.service 
+Created symlink '/etc/systemd/system/sshd.service' → '/dev/null'.
+--------------------------
+student@rhcsaserver:/run/systemd$ systemctl start sshd.service
+Failed to start sshd.service: Unit sshd.service is masked.
+--------------------------
+student@rhcsaserver:/run/systemd$ systemctl status sshd.service 
+● sshd.service
+     Loaded: masked (Reason: Unit sshd.service is masked.)
+.....
+```
+### Using Systemd to Run Anything
+You can basically just make a custom service by copying an existing service from `/usr/lib/systemd/system/*.service` to `/etc/systemd/system/*.service` and then edit the contents to run your custom commands.
+```bash
+student@rhcsaserver:/run/systemd$ sudo cp -v /usr/lib/systemd/system/upower.service /etc/systemd/system/custom.service
+'/usr/lib/systemd/system/upower.service' -> '/etc/systemd/system/custom.service'
+```
+Edit the new file to reflect what you would like it to do.
+```bash
+GNU nano 8.1                                  /etc/systemd/system/custom.service                                  Modified  
+[Unit]
+Description=Sleepy boi                 
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/sleep 300  
+
+[Install]
+WantedBy=multi-user.target
+```
+Reload systemd for it to get the new config.
+```bash
+student@rhcsaserver:/run/systemd$ sudo systemctl daemon-reload 
+```
+Start the service.
+```bash
+student@rhcsaserver:/run/systemd$ systemctl status custom.service 
+○ custom.service - Sleepy boi
+     Loaded: loaded (/etc/systemd/system/custom.service; disabled; preset: disabled)
+     Active: inactive (dead)
+--------------------------------
+student@rhcsaserver:/run/systemd$ systemctl start custom.service 
+--------------------------------
+student@rhcsaserver:/run/systemd$ systemctl status custom.service 
+● custom.service - Sleepy boi
+     Loaded: loaded (/etc/systemd/system/custom.service; disabled; preset: disabled)
+     Active: active (running) since Sat 2026-04-04 19:22:59 CDT; 1s ago
+ Invocation: 6f95e89e480f4b35ab61c107f04f4f5d
+   Main PID: 6937 (sleep)
+      Tasks: 1 (limit: 35471)
+     Memory: 252K (peak: 1.2M)
+        CPU: 2ms
+     CGroup: /system.slice/custom.service
+             └─6937 /usr/bin/sleep 300
+
+Apr 04 19:22:59 rhcsaserver.example.com systemd[1]: Started custom.service - Sleepy boi.
+```
+## Scheduling Tasks
+
+## Configuring Logging
+
+# Managing Storage
+
