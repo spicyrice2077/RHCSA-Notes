@@ -1,3 +1,4 @@
+![image RHEL](https://github.com/spicyrice2077/RHCSA-Notes/blob/main/images/redhat.png)
 # Understanding Red Hat Enterprise Linux
 ### Basics
 The big thing about RHEL is support. The Red Hat company can provide support for paying companies.
