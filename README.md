@@ -1366,8 +1366,234 @@ student@rhcsaserver:/run/systemd$ systemctl status custom.service
 Apr 04 19:22:59 rhcsaserver.example.com systemd[1]: Started custom.service - Sleepy boi.
 ```
 ## Scheduling Tasks
+### Systemd Timer
+Since **RHEL 9**, this is the default way of scheduling recurring services.
+Systemd provides `unit.timer` files which are used along side `unit.service` files to schedule the service.
+In the `.timer` file, the `OnCalendar` option specifies when the service should be started. 
+Systemd timers are often installed from RPM packages.
+
+You can use **systemctl** with the appropriate arguments to list the available timers.
+```bash
+student@rhcsaserver:~$ systemctl list-units -t timer 
+  UNIT                         LOAD   ACTIVE SUB     DESCRIPTION                                 
+  dnf-makecache.timer          loaded active waiting dnf makecache --timer
+  fstrim.timer                 loaded active waiting Discard unused filesystem blocks once a week
+  fwupd-refresh.timer          loaded active waiting Refresh fwupd metadata regularly
+  logrotate.timer              loaded active waiting Daily rotation of log files
+  plocate-updatedb.timer       loaded active waiting Update the plocate database daily
+  raid-check.timer             loaded active waiting Weekly RAID setup health check
+  systemd-tmpfiles-clean.timer loaded active waiting Daily Cleanup of Temporary Directories
+
+Legend: LOAD   → Reflects whether the unit definition was properly loaded.
+        ACTIVE → The high-level unit activation state, i.e. generalization of SUB.
+        SUB    → The low-level unit activation state, values depend on unit type.
+
+7 loaded units listed. Pass --all to see loaded but inactive units, too.
+To show all installed unit files use 'systemctl list-unit-files'.
+```
+You can also list the particular associated files with the following command.
+```bash
+student@rhcsaserver:~$ systemctl list-unit-files logrotate*
+UNIT FILE         STATE   PRESET 
+logrotate.service static  -      
+logrotate.timer   enabled enabled
+
+2 unit files listed.
+```
+We can user `systemctl cat` on a timer to view the details of the timer.
+```bash
+student@rhcsaserver:~$ systemctl cat logrotate.timer 
+# /usr/lib/systemd/system/logrotate.timer
+[Unit]
+Description=Daily rotation of log files
+Documentation=man:logrotate(8) man:logrotate.conf(5)
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+The **OnCalendar** option can be validated with the following command.
+```bash
+student@rhcsaserver:~$ systemd-analyze calendar daily 8:00
+  Original form: daily
+Normalized form: *-*-* 00:00:00
+    Next elapse: Mon 2026-04-06 00:00:00 CDT
+       (in UTC): Mon 2026-04-06 05:00:00 UTC
+       From now: 4h 11min left
+
+  Original form: 8:00
+Normalized form: *-*-* 08:00:00
+    Next elapse: Mon 2026-04-06 08:00:00 CDT
+       (in UTC): Mon 2026-04-06 13:00:00 UTC
+       From now: 12h left
+```
+If you need to edit an existing timer, you can use the following.
+```bash
+student@rhcsaserver:~$ sudo systemctl edit raid-check.timer 
+-----------------------------
+### Editing /etc/systemd/system/raid-check.timer.d/override.conf
+### Anything between here and the comment below will become the contents of the drop-in file
+
+### Edits below this comment will be discarded
+### /usr/lib/systemd/system/raid-check.timer
+# [Unit]
+# Description=Weekly RAID setup health check
+# 
+# [Timer]
+# OnCalendar=Sun *-*-* 01:00:00
+# Persistent=true
+# AccuracySec=24h
+# 
+# [Install]
+# WantedBy=timers.target
+```
+### cron jobs
+The is the OG for scheduling and has been around for a while.
+The `crond` process checks its config every minute in the `/etc/crontab` file.
+For drop in cron files, they should be placed in `/etc/cron.d/` or one of the following.
+For `cron.d`, the files need the correct syntax... for the `hourly`, `daily`, `etc...` you can just put a script as long as it's executable.
+```bash
+student@rhcsaserver:/etc$ cd cron.
+cron.d/       cron.daily/   cron.hourly/  cron.monthly/ cron.weekly/  
+```
+To create a user cronjob, use `crontab -e` and make sure it has the correct syntax.
+
+Cron time specifications are specified as `minute, hour, day of the month, month, day of the week`.
+Example: `0 * * dec 1-5` will run a cron job `every Monday - Friday on minute zero in the Month of December`.
+```bash
+student@rhcsaserver:/etc$ cat /etc/crontab 
+SHELL=/bin/bash
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+MAILTO=root
+
+# For details see man 4 crontabs
+
+# Example of job definition:
+# .---------------- minute (0 - 59)
+# |  .------------- hour (0 - 23)
+# |  |  .---------- day of month (1 - 31)
+# |  |  |  .------- month (1 - 12) OR jan,feb,mar,apr ...
+# |  |  |  |  .---- day of week (0 - 6) (Sunday=0 or 7) OR sun,mon,tue,wed,thu,fri,sat
+# |  |  |  |  |
+# *  *  *  *  * user-name  command to be executed
+```
+
+**anacron** is the service behind **cron** that ensures jobs are executed on a regular basis.
+It takes care of all the jobs and the configuration is in `/etc/anacron`, but really shouldn't be edited.
+### at
+Before `at` can do its thing, the `atd` service must be running.
+You can use `at <time>` to schedule a job.
+- Type the specifications and then use `Ctrl+D` to close the shell.
+```bash
+student@rhcsaserver:/etc$ at 9:00
+warning: commands will be executed using /bin/sh
+at Mon Apr  6 09:00:00 2026
+at> touch /home/student/at.txt
+at> echo "This is a test" > /home/student/at.txt
+at> <EOT>
+job 1 at Mon Apr  6 09:00:00 2026
+```
+You can use `atq` to list jobs and then `atrm` to remove any you don't want.
+```bash
+student@rhcsaserver:/etc$ atq
+1	Mon Apr  6 09:00:00 2026 a student
+student@rhcsaserver:/etc$ atrm 1
+student@rhcsaserver:/etc$ atq
+student@rhcsaserver:/etc$ 
+```
+### Managing temporary files
+Temporary files have **historically** been placed in `/tmp`. Without management, this directory could become quite bloated.
+Nowadays, we use `systemd-tmpfiles` to manage temp files and directories.
+- This will create/delete temp files automatically according to the files in the following locations.
+	- `/usr/lib/tmpfiles.d/`
+	- `/etc/tmpfiles.d`
+	- `/run/tmpfiles.d`
+Using `man tmpfiles.d` is a good idea to refresh your memory on who to manage these.
+
+Example:
+If were were to create this file:
+```bash
+sudo nano /etc/tmpfiles.d/my_temp_dir.conf
+```
+And apply the following as contents:
+```bash
+d /run/my_temp_dir 0755 labex labex 1m
+```
+It would do the following:
+Explanation of the line:
+- `d`: Specifies that this entry defines a directory.
+- `/run/my_temp_dir`: The path to the directory.
+- `0755`: The permissions for the directory.
+- `labex labex`: The owner and group for the directory.
+- `1m`: The age after which files in this directory should be deleted (1 minute).
 
 ## Configuring Logging
+### systemd-journald
+This is the primary method for logging on RHEL 10.
+This receives logs from several locations and by default, **is not persistent**.
+- kernel
+- boot procedures
+- syslog events
+- standard output & errors from daemons
 
+A common way to use this is to run `systemctl status name.unit` - which prints out the latest log for the specific service.
+```bash
+student@rhcsaserver:~$ systemctl status sshd.service 
+● sshd.service - OpenSSH server daemon
+     Loaded: loaded (/usr/lib/systemd/system/sshd.service; enabled; preset: enabled)
+     Active: active (running) since Mon 2026-04-06 16:28:18 CDT; 4h 51min ago
+ Invocation: 6bf94a05ab7441d4a7cc841b3ec9a465
+       Docs: man:sshd(8)
+             man:sshd_config(5)
+   Main PID: 1295 (sshd)
+      Tasks: 1 (limit: 35471)
+     Memory: 2.3M (peak: 2.6M)
+        CPU: 5ms
+     CGroup: /system.slice/sshd.service
+             └─1295 "sshd: /usr/sbin/sshd -D [listener] 0 of 10-100 startups"
+
+Apr 06 16:28:18 rhcsaserver.example.com systemd[1]: Starting sshd.service - OpenSSH server daemon...
+Apr 06 16:28:18 rhcsaserver.example.com sshd[1295]: Server listening on 0.0.0.0 port 22.
+Apr 06 16:28:18 rhcsaserver.example.com sshd[1295]: Server listening on :: port 22.
+Apr 06 16:28:18 rhcsaserver.example.com systemd[1]: Started sshd.service - OpenSSH server daemon.
+```
+You can also run `journalctl` which prints the entire journal.
+You can also use different options. A few examples are:
+
+| Command                      | Description                                                       |
+| ---------------------------- | ----------------------------------------------------------------- |
+| `journalctl -p err`          | Only shows messages with priority error and higher                |
+| `journalctl -f`              | Prints the last 10 lines and shows new messages as they are added |
+| `journalctl -u sshd.service` | Shows messages for `sshd.service` only                            |
+### Preserving the systemd Journal
+
+> [!Important]
+> This is likely to be an exam task
+
+By default, log persistence is handled by rsyslog. All messages generated by the systemd journal are forwarded to rsyslog for storage.
+
+If you want the journal itself to retain logs persistently, modify the configuration file at `/usr/lib/systemd/journal.conf`. Change the `Storage` setting from its default value of `auto` to `persistent`.
+
+### rsyslogd
+The `rsyslogd` service must be running for log collection and forwarding to function properly.
+The main configuration file is located at `/etc/rsyslog.conf`, with additional drop-in configurations supported in `/etc/rsyslog.d/`.
+Each rsyslog rule consists of three components:
+- **Facility** – identifies the source or category of the log (e.g., `auth`, `cron`, `daemon`)
+- **Severity** – defines the level of importance to capture (e.g., `info`, `warning`, `err`)
+- **Destination** – specifies where the logs are written (e.g., a file, remote server, or pipe)
+- - Rules follow the format:  
+    `facility.severity destination`
+- Multiple facilities can be combined with commas (e.g., `auth,authpriv.*`)
+- Exclude with `none`:  
+`auth.info;authpriv.none /var/log/auth.log`
+### logrotate
+- Managed by a **systemd timer** (`logrotate.timer`)
+- Runs automatically (typically daily)
+- Main config: `/etc/logrotate.conf`
+- Per-service configs: `/etc/logrotate.d/`
 # Managing Storage
 
