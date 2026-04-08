@@ -1597,4 +1597,209 @@ Each rsyslog rule consists of three components:
 - Main config: `/etc/logrotate.conf`
 - Per-service configs: `/etc/logrotate.d/`
 # Managing Storage
+## Working with Partitions and Mounts
+### UEFI Disk Layout
+
+| Component              | Location / Size              | Key Purpose                                      |
+|----------------------|-----------------------------|--------------------------------------------------|
+| Reserved Space       | First **1 MiB**              | Alignment + metadata                             |
+| Protective MBR       | First **512 bytes (sector 0)** | Prevents legacy tools from overwriting GPT        |
+| GPT Header           | Sector 1                     | Defines GPT structure                            |
+| GPT Partition Table  | Next **32 sectors (16 KiB)** | Stores partition entries                         |
+| Partition Entries    | **128 entries × 128 bytes**  | Defines partitions                               |
+| EFI System Partition | Separate partition           | Contains bootloaders for UEFI                    |
+
+- Systems **must have partitions**, including an **EFI System Partition (ESP)** for UEFI boot  
+- **Partitions are required even when using LVM**  
+- A **filesystem must be created on a partition** before use  
+- Common practice: use **multiple partitions** to separate data (e.g., `/`, `/home`, `/var`)  
+### Listing Block Devices
+Use `lsblk` to get an overview of currently existing devices.
+- `/dev/nvmexny` is used for VNME devices
+- `/dev/sdx` is common for SCSI and SATA devices
+- `/dev/vdx` is common for KVM virtual machines
+```bash
+student@rhcsaserver:/etc$ lsblk 
+NAME          MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
+sr0            11:0    1 1024M  0 rom  
+vda           252:0    0   40G  0 disk 
+├─vda1        252:1    0    1M  0 part 
+├─vda2        252:2    0    1G  0 part /boot
+└─vda3        252:3    0   39G  0 part 
+  ├─rhel-root 253:0    0   35G  0 lvm  /
+  └─rhel-swap 253:1    0    4G  0 lvm  [SWAP]
+```
+#### Partition Numbering
+On **sd** and **vd** devices, partitions are numbered in order:
+- `/dev/sda2` is the second partition on the first hard disk.
+- `/dev/sdb1` is the first partition on the second hard disk.
+On **nvme** devices, partition names are appended to the device name:
+- `/dev/nvme0n1p1` is the first partition on the first hard disk
+- `/dev/nvme0n3p2` is the second partition on the third hard disk
+### Understanding GPT and MBR Partitions
+
+| Feature           | MBR               | GPT                    |
+| ----------------- | ----------------- | ---------------------- |
+| Year Introduced   | 1981              | Modern (replaces MBR)  |
+| Disk Size Limit   | ~2 TiB            | Very large (>> 2 TiB)  |
+| Max Partitions    | 4 primary         | 128                    |
+| Partition Storage | 64 bytes (in MBR) | 16 KiB partition table |
+| Boot Method       | Legacy BIOS       | UEFI                   |
+| Modern Usage      | `Deprecated`      | Standard               |
+### Creating Partitions
+The two common tools used to manage partitions are `fdisk` and `parted`.
+- `fdisk` → typically used with MBR
+- `parted` → preferred for GPT/UEFI systems
+
+#### Partition Types
+
+| Type   | Purpose                          |
+|--------|----------------------------------|
+| linux  | Standard Linux filesystem         |
+| swap   | Swap space                        |
+| uefi   | EFI System Partition (boot)       |
+| lvm    | Used for LVM physical volumes     |
+
+- Partition type = identifier for how a partition is intended to be used  
+- On modern systems, type is **less critical**, but still useful for organization  
+- In `fdisk`, use:
+  - `t` → change partition type  
+  - `l` → list available types  
+
+After creating a partition, verify your work:
+
+```bash
+lsblk
+```bash
+student@rhcsaserver:~$ lsblk 
+NAME          MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
+sr0            11:0    1 1024M  0 rom  
+vda           252:0    0   40G  0 disk 
+├─vda1        252:1    0    1M  0 part 
+├─vda2        252:2    0    1G  0 part /boot
+└─vda3        252:3    0   39G  0 part 
+  ├─rhel-root 253:0    0   35G  0 lvm  /
+  └─rhel-swap 253:1    0    4G  0 lvm  [SWAP]
+vdb           252:16   0   20G  0 disk 
+└─vdb1        252:17   0   20G  0 part 
+```
+### Creating and Mounting File Systems
+#### Common File Systems
+- **XFS** (RHEL default)
+  - Fast and scalable  
+  - Can grow, but **cannot shrink**  
+- **Ext4**
+  - Older default (RHEL 6), still supported  
+  - Backward compatible with Ext2  
+  - Can **grow and shrink**  
+- **vfat**
+  - Supports multiple operating systems  
+  - Commonly used for **EFI System Partition (ESP)** and shared media  
+#### Creating and Mounting a File System
+A partition is not very useful without a file system. 
+You can use some of the following commands to create one on a parition.
+`mkfs.xfs` - creates an xfs file system.
+`mkfs.ext4` - creates an ext4 file system.
+`mkfs.[Tab][Tab]` to show a list of available file systems.
+```bash
+student@rhcsaserver:~$ mkfs[TAB][TAB]
+mkfs         mkfs.erofs   mkfs.ext2    mkfs.ext4    mkfs.minix   mkfs.vfat    
+mkfs.cramfs  mkfs.exfat   mkfs.ext3    mkfs.fat     mkfs.msdos   mkfs.xfs
+```
+Example:
+```bash
+student@rhcsaserver:~$ sudo mkfs.ext4 /dev/vdb1
+
+mke2fs 1.47.1 (20-May-2024)
+Discarding device blocks: done                            
+Creating filesystem with 5242364 4k blocks and 1310720 inodes
+Filesystem UUID: 4ed83bcc-c612-42ba-adfd-131eaff7c57d
+Superblock backups stored on blocks: 
+	32768, 98304, 163840, 229376, 294912, 819200, 884736, 1605632, 2654208, 
+	4096000
+
+Allocating group tables: done                            
+Writing inode tables: done                            
+Creating journal (32768 blocks): done
+Writing superblocks and filesystem accounting information: done   
+```
+
+After creating the file system, you can mount it by doing the following.
+```bash
+student@rhcsaserver:~$ sudo mount /dev/vdb1 /mnt/
+
+student@rhcsaserver:~$ lsblk
+NAME          MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
+sr0            11:0    1 1024M  0 rom  
+vda           252:0    0   40G  0 disk 
+├─vda1        252:1    0    1M  0 part 
+├─vda2        252:2    0    1G  0 part /boot
+└─vda3        252:3    0   39G  0 part 
+  ├─rhel-root 253:0    0   35G  0 lvm  /
+  └─rhel-swap 253:1    0    4G  0 lvm  [SWAP]
+vdb           252:16   0   20G  0 disk 
+└─vdb1        252:17   0   20G  0 part /mnt
+
+```
+### Mounting Partitions through `/etc/fstab`
+For a more persistent mount, it is add the device into `/etc/fstab`.
+```bash
+student@rhcsaserver:~$ cat /etc/fstab 
+
+#
+# /etc/fstab
+# Created by anaconda on Mon Mar 16 01:26:19 2026
+#
+# Accessible filesystems, by reference, are maintained under '/dev/disk/'.
+# See man pages fstab(5), findfs(8), mount(8) and/or blkid(8) for more info.
+#
+# After editing this file, run 'systemctl daemon-reload' to update systemd
+# units generated from this file.
+#
+UUID=47b2eee4-5f8d-42d6-9746-01a3681f5c0f /                       xfs     defaults        0 0
+UUID=90c4ef48-c9a8-461b-81d5-9089dbb3b7ea /boot                   xfs     defaults        0 0
+UUID=99e1d6b4-4ae6-47ba-87ca-2c59073eed00 none                    swap    defaults        0 0
+```
+You can update the changes by running `systemctl daemon-reload`.
+> [!WARNING]
+> If you have an error in `/etc/fstab`, your system will drop a troubleshooting shell while booting.
+
+Use `mount -a` to mount all that hasn't been mounted yet.
+Alternatively, use `findmnt --verify` to verify synstax.
+```bash
+student@rhcsaserver:~$ sudo findmnt --verify
+none
+   [W] target specified more than once
+none
+   [E] unsupported source tag: UID=99e1d6asdfasdf-87ca-2c59073eed00
+   [W] cannot detect on-disk filesystem type (No such file or directory)
+```
+
+```bash
+student@rhcsaserver:~$ sudo findmnt --verify
+Success, no errors or warnings detected
+```
+### Using UUID and Labels
+
+> [!IMPORTANT]
+> 
+
+Sometimes, block device names may change, therefor, it may make sense to use a different solution.
+- **UUID**: This is automatically generated for each device that contains a file system
+- **Label**: This can be set when the file system is created
+
+You can use `lsblk --fs` to include the **UUID** & **Label**.
+```bash
+student@rhcsaserver:~$ lsblk --fs 
+NAME          FSTYPE      FSVER    LABEL UUID                                   FSAVAIL FSUSE% MOUNTPOINTS
+sr0                                                                                            
+vda                                                                                            
+├─vda1                                                                                         
+├─vda2        xfs                        90c4ef48-c9a8-461b-81d5-9089dbb3b7ea    607.7M    37% /boot
+└─vda3        LVM2_member LVM2 001       TtWr5a-jyuY-2xy7-peM0-XQKW-oLFU-EF3y0r                
+  ├─rhel-root xfs                        47b2eee4-5f8d-42d6-9746-01a3681f5c0f     30.1G    14% /
+  └─rhel-swap swap        1              99e1d6b4-4ae6-47ba-87ca-2c59073eed00                  [SWAP]
+vdb                                                                                            
+└─vdb1        ext4        1.0            4ed83bcc-c612-42ba-adfd-131eaff7c57d     18.5G     0% /mnt
+```
 
