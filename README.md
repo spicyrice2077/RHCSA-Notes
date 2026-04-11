@@ -1780,10 +1780,6 @@ student@rhcsaserver:~$ sudo findmnt --verify
 Success, no errors or warnings detected
 ```
 ### Using UUID and Labels
-
-> [!IMPORTANT]
-> 
-
 Sometimes, block device names may change, therefor, it may make sense to use a different solution.
 - **UUID**: This is automatically generated for each device that contains a file system
 - **Label**: This can be set when the file system is created
@@ -1802,4 +1798,167 @@ vda
 vdb                                                                                            
 └─vdb1        ext4        1.0            4ed83bcc-c612-42ba-adfd-131eaff7c57d     18.5G     0% /mnt
 ```
+### Creating a Swap Partition
+Swap is **disk space used as an extension of RAM**
+Swap can be created on any block device.
 
+You can do so by setting a partition type to `linux-swap`
+```bash
+student@rhcsaserver:~$ sudo fdisk /dev/vdb
+
+Welcome to fdisk (util-linux 2.40.2).
+Changes will remain in memory only, until you decide to write them.
+Be careful before using the write command.
+
+
+Command (m for help): p
+Disk /dev/vdb: 20 GiB, 21474836480 bytes, 41943040 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disklabel type: gpt
+Disk identifier: 6984BD61-ED82-4015-9EFD-54B939C2D9B1
+
+Device     Start      End  Sectors Size Type
+/dev/vdb1   2048 41940991 41938944  20G Linux swap
+```
+After creating the swap partition, use `mkswap` to create the swap file-system
+```bash
+student@rhcsaserver:~$ sudo mkswap /dev/vdb1 
+mkswap: /dev/vdb1: warning: wiping old ext4 signature.
+Setting up swapspace version 1, size = 20 GiB (21472735232 bytes)
+no label, UUID=52f6d4f2-50b7-421a-8ed1-574f671a3d25
+```
+Then, add to `/etc/fstab` by UUID
+```bash
+# /etc/fstab
+# Created by anaconda on Mon Mar 16 01:26:19 2026
+#
+# Accessible filesystems, by reference, are maintained under '/dev/disk/'.
+# See man pages fstab(5), findfs(8), mount(8) and/or blkid(8) for more info.
+#
+# After editing this file, run 'systemctl daemon-reload' to update systemd
+# units generated from this file.
+#
+UUID=47b2eee4-5f8d-42d6-9746-01a3681f5c0f /                       xfs     defaults        0 0
+UUID=90c4ef48-c9a8-461b-81d5-9089dbb3b7ea /boot                   xfs     defaults        0 0
+UUID=99e1d6b4-4ae6-47ba-87ca-2c59073eed00 none                    swap    defaults        0 0
+UUID=52f6d4f2-50b7-421a-8ed1-574f671a3d25 none                    swap    defaults        0 0
+```
+Turn it on
+```bash
+student@rhcsaserver:~$ sudo swapon -a
+student@rhcsaserver:~$ swapon 
+NAME      TYPE      SIZE USED PRIO
+/dev/dm-1 partition   4G   0B   -2
+/dev/vdb1 partition  20G   0B   -3
+```
+## Managing Advanced Storage
+### LVM Overview
+
+```
+Physical Volume → Volume Group → Logical Volume → mkfs → mount
+```
+- You take **raw disks (`Physical Volume / PVs`)**
+    - Disk or partition initialized for LVM
+    - Example: `/dev/sdb1`
+- Combine them into a **storage pool (`Volume Group / VG`)**
+	- Pool of storage made from one or more PVs
+    - Example: `vg_data`
+- Carve out **usable volumes (`Logical Volume / LV`)**
+	- Virtual block device carved from VG
+    - Example: `lv_data`
+- Then:
+    - Format → `mkfs`
+    - Mount → `/etc/fstab`
+### Creating an LVM Volume
+```bash
+# Create Physical Volume
+pvcreate /dev/<partition>
+
+# Create Volume Group
+vgcreate <vg_name> /dev/<partition>
+
+# Create Logical Volume
+lvcreate --namen <lv_name> --size <size> <vg_name>
+
+# Format Logical Volume
+mkfs.xfs /dev/<vg_name>/<lv_name>
+
+# Mount Logical Volume
+mount /dev/<vg_name>/<lv_name> <mount_point>
+```
+### Device Mapper (High-Level Notes)
+- Kernel subsystem that creates virtual block devices
+- Acts as a layer between physical storage and higher-level tools
+- Used by LVM, encryption (dm-crypt), and RAID
+
+`Physical Disk → LVM → Device Mapper → Block Device → Filesystem`
+- LVM defines structure (`VG`/`LV`)
+- Device Mapper creates the actual usable device
+
+Device Mapper is the back end system that creates block devices; LVM uses it, but you should interact with the persistent LVM paths instead of `dm-*` names.
+### Resizing LVM Logical Volumes
+Use `vgs` to verify the volume group has unused disk space.
+If the volume group does not have enough free space, add one or more physical volumes to it.
+```bash
+pvcreate /dev/<disk>
+vgextend <vg_name> /dev/<disk>
+```
+#### Extend by size
+```bash
+lvextend --size +5G /dev/<vg>/<lv>
+```
+#### Extend using all free space
+```bash
+lvextend --extents +100%FREE /dev/<vg>/<lv>
+```
+#### Extend + resize file-system
+```bash
+lvextend --resizefs --size +5G /dev/<vg>/<lv>
+```
+```bash
+lvextend --resizefs --extents +100%FREE /dev/<vg>/<lv>
+```
+#### If you forget to use `resizefs`...
+You can use `resize2fs` to adjust the size on a `Ext` file-system
+You can also use `xfs_growfs` to increase the size on a `XFS` file-system.
+
+> [!WARNING]
+> `Ext4` can be extended and shrunk
+> `XFS` can be extended, but not shrunk
+### Reducing Volume Groups
+If a volume group (`VG`) contains multiple physical volumes (`PV`), you can remove a `PV` **only if all data (extents) on that `PV` can be moved elsewhere within the `VG`**.
+- Data in LVM is stored as **extents** across all PVs in the VG
+- You **cannot remove a PV that still contains allocated extents**
+- So the process is:
+    1. **Move extents off the `PV`**
+    2. **Remove the `PV` from the `VG`**
+#### 1) Check current layout
+```bash
+pvs  
+vgs  
+lvs
+```
+Look for:
+- Which PV you want to remove
+- How much data is on it
+- Whether other PVs have enough free space
+#### 2) Move data off the PV
+```bash
+pvmove /dev/<pv_to_remove>
+```
+- Moves all allocated extents from that PV → to other PVs in the VG
+- Can also be more controlled:
+```bash
+pvmove /dev/<pv_to_remove> /dev/<target_pv>
+```
+#### 3) Verify the PV is empty
+```bash
+pvs
+```
+- The PV should show **0 allocated extents**
+#### 4) Remove the PV from the VG
+```bash
+vgreduce <vg_name> /dev/<pv_to_remove>
+```
