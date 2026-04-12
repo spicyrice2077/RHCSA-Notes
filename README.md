@@ -1926,6 +1926,7 @@ You can also use `xfs_growfs` to increase the size on a `XFS` file-system.
 
 > [!WARNING]
 > `Ext4` can be extended and shrunk
+> 
 > `XFS` can be extended, but not shrunk
 ### Reducing Volume Groups
 If a volume group (`VG`) contains multiple physical volumes (`PV`), you can remove a `PV` **only if all data (extents) on that `PV` can be moved elsewhere within the `VG`**.
