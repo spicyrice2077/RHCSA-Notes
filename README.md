@@ -9,8 +9,11 @@ You can obtain support for up to 10 years
 You can have free access to RHEL (unsupported) for up to 16 instances of RHEL (using a Developer account)
 ### The RHEL family
 `Fedora` - latest and greatest, but less stable.
+
 `CentOS` Stream - a little more stable than fedora, but more cutting edge than RHEL.
+
 `RHEL` is derived from CentOS.
+
 `Oracle` and `Amazon linux` are derived from RHEL.
 ### Custom Partitioning
 Linux servers need 3 different areas for storing data
@@ -19,8 +22,11 @@ Linux servers need 3 different areas for storing data
 - `/` - OS essential files
 # Using the Command Line
 `bash` is often the default shell.
+
 `terminal` is an environment which runs the shell.
+
 `who` command can be used to display who is logged in.
+
 `cockpit` is a useful interface, but you should not rely too heavily on it.
 # Essential tools
 ### man
@@ -54,8 +60,11 @@ Redirection uses `STDIN`, `STDERR`, and `STDOUT` to work with command output.
 | `ps aux \| grep ssh` | Sending output to then be processed by  another command |
 ### History
 Bash registers command history.
+
 The `command` history will print out recently used commands.
+
 The `HISTSIZE` and `HISTFILESIZE` are variables to define how long it should be (1000 is default).
+
 `history -w` syncs history memory to the history file.
 ### Shell Expansion
 Globbing expands filename based on wildcards.
@@ -109,10 +118,15 @@ you can remove an alias with `unalias`.
 custom aliases are stored in bash startup files.
 ### Tuning the bash environment
 The following is to make variables and alias persistent.
+
 `/etc/profile` is the generic bash file that are processed in a login shell.
+
 `/etc/bashrc` is processed while opening a subshell.
+
 `~/.bash_profile` is the *user specific* way to customize.
+
 `~/.bashrc` same thing.
+
 `~/.bash_logout` commands you want to execute when you log out.
 # Basic System Admin tasks
 ## File Management
