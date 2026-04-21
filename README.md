@@ -8,40 +8,40 @@ A new version of RHEL comes out every 3 years or so.
 You can obtain support for up to 10 years
 You can have free access to RHEL (unsupported) for up to 16 instances of RHEL (using a Developer account)
 ### The RHEL family
-`Fedora` - latest and greatest, but less stable
-`CentOS` Stream - a little more stable than fedora, but more cutting edge than RHEL
-`RHEL` is derived from CentOS
-`Oracle` and `Amazon linux` are derived from RHEL
+`Fedora` - latest and greatest, but less stable.
+`CentOS` Stream - a little more stable than fedora, but more cutting edge than RHEL.
+`RHEL` is derived from CentOS.
+`Oracle` and `Amazon linux` are derived from RHEL.
 ### Custom Partitioning
 Linux servers need 3 different areas for storing data
 -  small partition for linux kernel
 -  UEFI bootlogger files
 - `/` - OS essential files
 # Using the Command Line
-`bash` is often the default shell
-`terminal` is an environment which runs the shell
-`who` command can be used to display who is logged in
-`cockpit` is a useful interface, but you should not rely too heavily on it
+`bash` is often the default shell.
+`terminal` is an environment which runs the shell.
+`who` command can be used to display who is logged in.
+`cockpit` is a useful interface, but you should not rely too heavily on it.
 # Essential tools
 ### man
-best source to get extensive info on your system (especially if you don't have internet access)
-These are formatted into sections
+best source to get extensive info on your system (especially if you don't have internet access).
+These are formatted into sections.
 - section 1 - executable programs/commands
 - section 5 - file formats and conventions
 - section 8 - system admin commands (sudo)
-You can use `/text_here` to search for a string in the man page
-You can also use uppercase `G` to show examples
-`man` is indexed from `mandb`
-You can populate mandb using `sudo mandb`
+You can use `/text_here` to search for a string in the man page.
+You can also use uppercase `G` to show examples.
+`man` is indexed from `mandb`.
+You can populate mandb using `sudo mandb`.
 ### editors
-Linux configuration happens by modifying text files
+Linux configuration happens by modifying text files.
 - plain ASCII is used often
 - YAML is often used for Ansible
 - JSON is often good for data storage formats
-- XML is an alternative to both of the above
-`nano` and `vim` are very common text editors
-`nano` is very easy to use
-`vim` is more complex and very powerful
+- XML is an alternative to both of the above.
+`nano` and `vim` are very common text editors.
+`nano` is very easy to use.
+`vim` is more complex and very powerful.
 # Understanding the Bash Shell
 ### Using I/O Redirection and Piping
 Redirection uses `STDIN`, `STDERR`, and `STDOUT` to work with command output.
@@ -53,17 +53,17 @@ Redirection uses `STDIN`, `STDERR`, and `STDOUT` to work with command output.
 | `2> /dev/null`       | Send errors to /dev/null                                |
 | `ps aux \| grep ssh` | Sending output to then be processed by  another command |
 ### History
-Bash registers command history
-The `command` history will print out recently used commands
-The `HISTSIZE` and `HISTFILESIZE` are variables to define how long it should be (1000 is default)
-`history -w` syncs history memory to the history file
+Bash registers command history.
+The `command` history will print out recently used commands.
+The `HISTSIZE` and `HISTFILESIZE` are variables to define how long it should be (1000 is default).
+`history -w` syncs history memory to the history file.
 ### Shell Expansion
-Globbing expands filename based on wildcards
+Globbing expands filename based on wildcards.
 - `ls *`
 - `ls a?*`
 - `ls [a-e]*`
 
-Other types of expansion also exist
+Other types of expansion also exist.
 - brace expansion: `touch file{1..9}`
 - Tilde expansion: `cd ~`
 - Command substitution: `ls -l $(which ls)`
@@ -77,9 +77,9 @@ Escaping is taking away the special meaning of certain characters that otherwise
 | Single Quotes<br>`'text here'` | Suppresses special meaning of everything.                                              |
 | Backslash<br>`\`               | Protects the following character from expansion                                        |
 ### Variables
-These are items to be referenced and re-used
-The command `env` will show the current variables
-Users can define new variables using `[export] key=value` (mostly useful for scripting)
+These are items to be referenced and re-used.
+The command `env` will show the current variables.
+Users can define new variables using `[export] key=value` (mostly useful for scripting).
 ```bash
 [bradley@cachyos ~]$ color=blue
 [bradley@cachyos ~]$ echo $color
@@ -105,20 +105,20 @@ drwxr-xr-x  1 bradley bradley  160 Mar 11 15:48 Documents
 drwxr-xr-x  1 bradley bradley  572 Mar 17 12:30 Downloads
 
 ```
-you can remove an alias with `unalias`
-custom aliases are stored in bash startup files
+you can remove an alias with `unalias`.
+custom aliases are stored in bash startup files.
 ### Tuning the bash environment
-The following is to make variables and alias persistent
-`/etc/profile` is the generic bash file that are processed in a login shell
-`/etc/bashrc` is processed while opening a subshell
-`~/.bash_profile` is the *user specific* way to customize
-`~/.bashrc` same thing
-`~/.bash_logout` commands you want to execute when you log out
+The following is to make variables and alias persistent.
+`/etc/profile` is the generic bash file that are processed in a login shell.
+`/etc/bashrc` is processed while opening a subshell.
+`~/.bash_profile` is the *user specific* way to customize.
+`~/.bashrc` same thing.
+`~/.bash_logout` commands you want to execute when you log out.
 # Basic System Admin tasks
 ## File Management
 ### Directory Structure
-The directory hierarchy is highly standardized
-The command `man hier` will print out descriptions
+The directory hierarchy is highly standardized.
+The command `man hier` will print out descriptions.
 
 | Directory | Purpose                                                             |
 | --------- | ------------------------------------------------------------------- |
@@ -159,7 +159,7 @@ The command `man hier` will print out descriptions
 | `find`   | most powerful command, but requires some more input<br>Example: <br># Find files by extension:<br>`find path/to/directory -name '*.ext'` |
 ### Mounting Filesystems
 To access a device like a partition, it must be connected to a directory otherwise known as *mounting* a device.
-The Linux file-system often uses multiple mounts
+The Linux file-system often uses multiple mounts.
 
 To manually mount a device, you can use the following command.
 ```bash
@@ -169,8 +169,8 @@ Example:
 ```bash
 mount /dev/sdb1 /mnt
 ```
-The `mount` command gives an overview of all mounts
-It's a little too much info for most occasions
+The `mount` command gives an overview of all mounts.
+It's a little too much info for most occasions.
 ```bash
 [bradley@cachyos ~]$ mount  
 /dev/nvme0n1p2 on / type btrfs (rw,noatime,compress=zstd:1,ssd,discard=async,space_cache=v2,subvolid=256,subvol=/@)  
@@ -196,7 +196,7 @@ TARGET                       SOURCE               FSTYPE      OPTIONS
 │ ├─/sys/kernel/config       configfs             configfs    rw,nosuid,nodev,noexec,relatime
 # more below ...
 ```
-The `lsblk` command gives a clean overview of real devices and their current mount in the directory structure
+The `lsblk` command gives a clean overview of real devices and their current mount in the directory structure.
 ```bash
 student@rhcsa1:~$ lsblk
 NAME          MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
@@ -210,7 +210,7 @@ vda           252:0    0   40G  0 disk
 
 ```
 ### Links
-This will show the inode number in a list format
+This will show the inode number in a list format.
 ```bash
 ls -il
 ```
@@ -227,18 +227,18 @@ Create hard links by default, symbolic links with --symbolic.
 
 ```
 #### hard links
-A name that is pointing directly to a inode
-You can have several that point to the same inode
-These must be on the same device
-The target **cannot** be a directory
-Example of use: 6 links pointing to the same script that needs to be changed often
+A name that is pointing directly to a inode.
+You can have several that point to the same inode.
+These must be on the same device.
+The target **cannot** be a directory.
+Example of use: 6 links pointing to the same script that needs to be changed often.
 #### symbolic links
-These point to a name
-Also called a soft link
-If the target is removed, then this will point to nothing
-The target **can** be a directory
-The best practice is to point to an **absolute path** instead of a **relative path**
-`bin`, `lib`, `lib64` are symlinks in the example below
+These point to a name.
+Also called a soft link.
+If the target is removed, then this will point to nothing.
+The target **can** be a directory.
+The best practice is to point to an **absolute path** instead of a **relative path**.
+`bin`, `lib`, `lib64` are symlinks in the example below.
 ```bash
 student@rhcsa1:/$ ls -l /
 total 24
@@ -252,8 +252,8 @@ lrwxrwxrwx.   1 root root    7 Apr  1  2025 lib -> usr/lib
 lrwxrwxrwx.   1 root root    9 Apr  1  2025 lib64 -> usr/lib64
 ```
 ### Archiving Files
-`tar` is the **Tape Archiver** and was created a long time ago
-It doesn't compress data by default
+`tar` is the **Tape Archiver** and was created a long time ago.
+It doesn't compress data by default.
 ```bash
 student@rhcsa1:/$ tar --help
 Usage: tar [OPTION...] [FILE]...
@@ -265,36 +265,36 @@ Examples:
   tar -tvf archive.tar         # List all files in archive.tar verbosely.
   tar -xf archive.tar          # Extract all files from archive.tar.
 ```
-`gzip` (`-z` argument for tar) is the most common compression utility
+`gzip` (`-z` argument for tar) is the most common compression utility.
 ## Managing text Files
 ### Common text tools
 #### more
 the original file pager
 #### less
-was developed to offer some more advanced features
-you can use the arrows to go up and down
+was developed to offer some more advanced features.
+you can use the arrows to go up and down.
 #### head
-show first 10 lines
-use `-n 20` to shows 20
+show first 10 lines.
+use `-n 20` to shows 20.
 #### tail 
-shows last 10 lines
-use `-n 20` to shows 20
-use `-f` to follow (useful to follow new additions to a file in real time)
+shows last 10 lines.
+use `-n 20` to shows 20.
+use `-f` to follow (useful to follow new additions to a file in real time).
 ```bash
 tail -f /var/log/messages
 ```
 #### cat
-dumps text file to screen
+dumps text file to screen.
 #### cut
-filters output
-Example
+filters output.
+Example.
 ```bash
 # Print the fifth character on each line:
 cut [-c|--characters] 5
 ```
 #### sort
-sorts output
-Example
+sorts output.
+Example.
 ```bash
 # Sort a file in ascending order:
 sort path/to/file
@@ -308,7 +308,7 @@ tr < path/to/file find_character replace_character
 
 ```
 ### grep
-tool to find text in output and files
+tool to find text in output and files.
 ```bash
 ps aux | grep firefox
 ```
@@ -317,14 +317,14 @@ Search for a pattern within files:
 grep "search_pattern" path/to/file1 path/to/file2 ...
 ```
 ### Regular Expressions (regex)
-Always put regex between single quotes
-Don't confuse these with globbing (shell wildcards)
+Always put regex between single quotes.
+Don't confuse these with globbing (shell wildcards).
 For use with some of the following tools:
 - grep
 - vim
 - awk
 - sed
-For more info
+For more info.
 ```bash
 man regex
 ```
@@ -337,53 +337,53 @@ Example: For lines that end with anna
 grep 'anna$'
 ```
 ### awk
-powerful text processing utility that specialized in data extraction and reporting
+powerful text processing utility that specialized in data extraction and reporting.
 Example: Print the fifth column (a.k.a. field) in a space-separated file:
 ```bash
 awk '{print $5}' path/to/file
 ```
 ### sed
-stream editor
-Used to search and transform text
-Can be used to delete specific lines
+stream editor.
+Used to search and transform text.
+Can be used to delete specific lines.
 ## The root account
-user id 0
-root operates in kernel space and has unlimited access to all parts of the system
-root is often not active these days
+user id 0.
+root operates in kernel space and has unlimited access to all parts of the system.
+root is often not active these days.
 ### Switching user
-the `su` command is used to switch to another user
-`su -` opens a shell with the correct environment variables
+the `su` command is used to switch to another user.
+`su -` opens a shell with the correct environment variables.
 ### sudo
 super user do
-Allows you to temporarily invoke the powers of root
-It's best to use `visudo` to manage the files
+Allows you to temporarily invoke the powers of root.
+It's best to use `visudo` to manage the files.
 You can manage who can sudo in:
 - `/etc/sudoers`
 - `/etc/sudoers.d`
-You can manage who has sudo rights with groups
+You can manage who has sudo rights with groups.
 `wheel` has full sudo rights
 ```bash
 ## Allows people in group wheel to run all commands
 %wheel	ALL=(ALL)	ALL
 ```
-This can be accomplished with the following command
+This can be accomplished with the following command.
 ```bash
 sudo usermod -aG wheel username
 ```
-You can allow users to run specific commands as admin with the following edit to the sudoers file
+You can allow users to run specific commands as admin with the following edit to the sudoers file.
 ```bash
 lisa ALL=/sbin/useradd, /usr/bin/passwd
 ```
-You can even make it more specific
+You can even make it more specific.
 ```bash
 %users ALL=/bin/mount /dev/sdb, /bin/umount /dev/sdb
 ```
 ### ssh
-`systemctl status sshd` to confirm if ssh is running
-by default, root is not allowed to use ssh
+`systemctl status sshd` to confirm if ssh is running.
+by default, root is not allowed to use ssh.
 #### scp
-Uses ssh to copy files to/from a remote server
-Example: copy /etc/hosts to /tmp/hosts on a remote server
+Uses ssh to copy files to/from a remote server.
+Example: copy /etc/hosts to /tmp/hosts on a remote server.
 ```bash
 scp /etc/hosts user@192.168.100.10:/tmp/hosts
 ```
@@ -404,9 +404,9 @@ it looks something like this
 ```bash
 bradley:x:1000:1000:bradley:/home/bradley:/bin/bash
 ```
-System users (service accounts / UID less than 1000) should have `/sbin/nologin` as their shell
+System users (service accounts / UID less than 1000) should have `/sbin/nologin` as their shell.
 You can view the password hash for users in `\etc\shadow`.
-The `!` means there is no password set
+The `!` means there is no password set.
 ```bash
 student@rhcsa1:~$ sudo tail /etc/shadow
 gdm:!:20528::::::
@@ -472,8 +472,8 @@ linda:x:1001:
 jack:x:1002:
 bob:x:1003:
 ```
-You can `temporarily` set primary group membership with `newgrp`
-`id` can be used to show group membership
+You can `temporarily` set primary group membership with `newgrp`.
+`id` can be used to show group membership.
 ```bash
 student@rhcsa1:~$ id
 uid=1000(student) gid=1000(student) groups=1000(student),10(wheel) context=unconfined_u:unconfined_r:unconfined_t:s0-s0:c0.c1023
@@ -487,11 +487,11 @@ uid=1000(student) gid=1000(student) groups=1000(student),10(wheel) context=uncon
 | `groupmod`               | modify a group        |
 | `usermod -aG group user` | Add a user to a group |
 ### Managing Password Properties
-Password hashes are stored in `/etc/shadow`
-- This is composed of `hashing algorithm` - `random salt` - `encrypted hash of user password`
-Basic password requirements are set in `/etc/login.defs`
+Password hashes are stored in `/etc/shadow`.
+- This is composed of `hashing algorithm` - `random salt` - `encrypted hash of user password`.
+Basic password requirements are set in `/etc/login.defs`.
 
-To change password settings for existing users, use `chage` or `passwd`
+To change password settings for existing users, use `chage` or `passwd`.
 ```bash
 Usage: chage [options] LOGIN
 
@@ -512,7 +512,7 @@ Options:
   -W, --warndays WARN_DAYS      set expiration warning days to WARN_DAYS
 ```
 ## Securing Files with Permissions
-Every files has a set of user, group, and other users permissions
+Every files has a set of user, group, and other users permissions.
 Using `ls -la` will show the permissions on files in the current directory.
 ```bash
 root@rhcsa1:/etc/skel# ls -la newfile 
@@ -550,9 +550,9 @@ root@rhcsa1:/home/anna# ls -la newfile
 | `Write`    | `2`    | Modify an existing file | adding files<br>deleting files |
 | `Execute`  | `1`    | Run a file              | `cd` into a directory          |
 ### Managing Basic Permissions
-`chmod` is used to manage permissions
-This can be used with absolute (`chmod 750 file`) or relative (`chmod +x file`)
-`chmod -R` can be used to change recursively
+`chmod` is used to manage permissions.
+This can be used with absolute (`chmod 750 file`) or relative (`chmod +x file`).
+`chmod -R` can be used to change recursively.
 ```bash
 root@rhcsa1:/home/anna# ls -la taco/
 total 0
@@ -570,8 +570,8 @@ mode of 'taco/seasoning3' changed from 0755 (rwxr-xr-x) to 0777 (rwxrwxrwx)
 ### Securing Files with Permissions
 Default permissions are managed with `umask`.
 It is basically a subtraction from the default permissions.
-This is managed globally in `/etc/bashrc`
-You can also manage per user in `~/.bashrc`
+This is managed globally in `/etc/bashrc`.
+You can also manage per user in `~/.bashrc`.
 
 | Permissions     | Files | Directories |
 | :-------------- | :---- | ----------- |
@@ -588,7 +588,7 @@ The `SUID` (Set User ID) ensures that a program *is executed* with the permissio
 | ---------------------- | ----------------------------------- |
 | `chmod g+s /directory` | Will apply SGID to the directory    |
 | `chmod +t /directory`  | Assigns sticky bit to the directory |
-You can use the following command to find files that have `SUID` enabled
+You can use the following command to find files that have `SUID` enabled.
 ```bash
 find / -perm /4000
 ```
@@ -835,7 +835,7 @@ You can also run the command `dnf config-manager --add-repo="file:///repo/AppStr
 | `dnf search all string` | searches description as well           |
 | `dnf info package`      | info about a package                   |
 ### Using dnf Groups
-A dnf group is a collection of packages
+A dnf group is a collection of packages.
 
 | Item                                | Description                                                                                                 |
 | ----------------------------------- | ----------------------------------------------------------------------------------------------------------- |
