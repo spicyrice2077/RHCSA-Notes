@@ -1963,3 +1963,595 @@ pvs
 ```bash
 vgreduce <vg_name> /dev/<pv_to_remove>
 ```
+# Advanced System Administration Tasks
+## Managing the Boot Procedure
+### Exploring the Boot Procedure
+**UEFI / BIOS**
+  - Initializes hardware → loads bootloader
+
+**GRUB**
+  - Selects and loads kernel + initramfs
+
+**Kernel**
+  - Initializes hardware → starts initramfs
+
+**initramfs**
+  - Loads drivers → mounts real root filesystem
+
+**systemd (PID 1)**
+  - Starts targets and services
+
+**Boot targets**
+  - multi-user.target (CLI) or graphical.target (GUI)
+
+**User space**
+  - Login prompt → shell or desktop
+### Modifying Grub2 Runtime Parameters
+While booting, press `e` to edit the runtime boot options to the end of the line that starts with `linux`.
+- `systemd.unit=emergency.target`
+- `systemd.unit=rescue.target`
+Press `c` to enter command mode (not very necessary for RHCSA).
+- You can type `help` for an overview of options
+- You can do `exit` to get out
+### Changing Grub2 Persistent Parameters
+```bash
+student@rhcsaserver:~$ cat /etc/default/grub
+GRUB_TIMEOUT=5
+GRUB_DISTRIBUTOR="$(sed 's, release .*$,,g' /etc/system-release)"
+GRUB_DEFAULT=saved
+GRUB_DISABLE_SUBMENU=true
+GRUB_TERMINAL_OUTPUT="console"
+GRUB_CMDLINE_LINUX="crashkernel=2G-64G:256M,64G-:512M resume=UUID=99e1d6b4-4ae6-47ba-87ca-2c59073eed00 rd.lvm.lv=rhel/root rd.lvm.lv=rhel/swap rhgb quiet"
+GRUB_DISABLE_RECOVERY="true"
+
+# This line means that configs are loaded from kernel specific .conf files
+GRUB_ENABLE_BLSCFG=true
+```
+If the above line is present (Default in RHEL 9 and 10), then Boot entries are stored in:
+```bash
+/boot/loader/entries/*.conf
+```
+#### grubby
+Instead of manually editing the above .conf files, you can use grubby.
+Set Persistent Kernel Parameters
+```bash
+grubby --update-kernel=ALL --args="param"
+```
+Remove Parameter
+```bash
+grubby --update-kernel=ALL --remove-args="param"
+```
+### Managing Systemd Targets
+A Systemd target is a group of unit files.
+Some targets are **isolatable**, which means they define the final state of a system.
+
+| Target              | Description                              |
+| ------------------- | ---------------------------------------- |
+| `emergency.target`  | Minimal system (no services, root shell) |
+| `rescue.target`     | Single-user mode (basic services)        |
+| `multi-user.target` | Functional system without a GUI          |
+| `graphical.target`  | Functional system with a GUI             |
+- When you enable a unit:
+    `systemctl enable <unit>`
+- It creates a symbolic link in a target directory, usually:
+    `/etc/systemd/system/<target>.wants/`
+- This means:  
+    → The unit will start **when that target is reached**
+### Setting Targets
+#### Get current default target
+```bash
+root@rhcsaserver:~# systemctl get-default 
+graphical.target
+```
+#### Set default target
+```bash
+systemctl set-default multi-user.target
+```
+#### Switch target (current session)
+```bash
+systemctl isolate multi-user.target
+```
+#### Booting into a target
+On the Grub 2 boot menu, add `systemd.unit=xxx.target` at the end of the line that begins with "`linux`" to boot into a specific target.
+## Recovering a Lost Root User Password
+> [!IMPORTANT]
+>
+
+Enter the grub menu while booting, press `e` to edit the kernel, and then add `init=/bin/bash` to the end of the line that starts with `"linux"`.
+Once in the minimal environment, enter the following command to get into a read + write mode.
+```bash
+mount -o remount,rw /
+```
+Then, use `passwd` to change the root password.
+```bash
+passwd root
+```
+After doing so, create the file `.autorelable` in the root directory to handle the `SELinux` stuff.
+```bash
+touch /.autorelable
+```
+## Basic Bash Scripting
+Be sure to provide the type of script at the top of the file
+```bash
+#!/bin/bash
+Script contents...
+```
+You can print text by using `echo`
+```bash
+#!/bin/bash
+echo "This is example text"
+```
+You can provide variables as well
+```bash
+#!/bin/bash
+
+name=bradley
+
+echo "Hello $name"
+
+#Output
+# Hello bradley
+```
+You can provide a positional argument with `$1` or `$2` and so on...
+```bash
+#!/bin/bash
+
+echo "First arg: $1"
+echo "Second arg: $2"
+```
+You can also add the output of commands as a variable.
+```bash
+#!/bin/bash
+date=$(date)
+user=$(whoami)
+dir=$(pwd)
+
+echo "Hello $user, you're currently in $dir and today's date is $date."
+```
+The `test` command can be used to test many things
+
+Need to add some more notes here...
+# Managing and Securing Network Services
+## SSH
+### SSH Key Based Login
+#### Create a key pair
+```bash
+student@rhcsaserver:~$ ssh-keygen
+Generating public/private ed25519 key pair.
+Enter file in which to save the key (/home/student/.ssh/id_ed25519): testkey1
+Enter passphrase for "testkey1" (empty for no passphrase): 
+Enter same passphrase again: 
+Your identification has been saved in testkey1
+Your public key has been saved in testkey1.pub
+The key fingerprint is:
+SHA256:OQ9eUrnZFd8FrMHC0LUG0sC140hHlGSvH9rIvSuLQMo student@rhcsaserver.example.com
+The key's randomart image is:
++--[ED25519 256]--+
+|       .+XB+..o..|
+|        .+*=o..oo|
+|        . *.+o. o|
+|       . * B..   |
+|      . S * o    |
+|   . o . B * .   |
+|    E . . = +    |
+|       . ..  .   |
+|        . .oo.   |
++----[SHA256]-----+
+
+########################################################################
+student@rhcsaserver:~$ cat testkey1
+-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+QyNTUxOQAAACCpS/OleiupQDsa3RL4ocRMP6SIB50srVdRbN0I8fhrcwAAAKiy7Wpksu1q
+ZAAAAAtzc2gtZWQyNTUxOQAAACCpS/OleiupQDsa3RL4ocRMP6SIB50srVdRbN0I8fhrcw
+AAAEAQli7nuodu9aOE2URsj4ufkJpQ6QBPu+b4rZDeXtYFgKlL86V6K6lAOxrdEvihxEw/
+pIgHnSytV1Fs3Qjx+GtzAAAAH3N0dWRlbnRAcmhjc2FzZXJ2ZXIuZXhhbXBsZS5jb20BAg
+MEBQY=
+-----END OPENSSH PRIVATE KEY-----
+
+########################################################################
+student@rhcsaserver:~$ cat testkey1.pub 
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKlL86V6K6lAOxrdEvihxEw/pIgHnSytV1Fs3Qjx+Gtz student@rhcsaserver.example.com
+```
+#### Copy the public key to the target
+```bash
+student@rhcsa-server-01:~$ sudo ssh-copy-id -i ./testkey1.pub student@192.168.100.44
+[sudo] password for student: 
+/bin/ssh-copy-id: INFO: Source of key(s) to be installed: "./testkey1.pub"
+The authenticity of host '192.168.100.44 (192.168.100.44)' can't be established.
+ED25519 key fingerprint is SHA256:meZUZYXrx5Lr4gA0Z+nn+mFj3AUp8frQ64AhOUAP6qs.
+This key is not known by any other names.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+/bin/ssh-copy-id: INFO: attempting to log in with the new key(s), to filter out any that are already installed
+/bin/ssh-copy-id: INFO: 1 key(s) remain to be installed -- if you are prompted now it is to install the new keys
+student@192.168.100.44's password: 
+
+Number of key(s) added: 1
+
+Now try logging into the machine, with: "ssh -i ./testkey1 'student@192.168.100.44'"
+and check to make sure that only the key(s) you wanted were added.
+```
+You can then authenticate to the server with the following command:
+```bash
+ssh user@server -i /path/to/private/key
+```
+### Common SSH Server Options
+Changes are made in `/etc/ssh/sshd_config`.
+Important settings:
+
+| Setting                  | Description                                                              |
+| ------------------------ | ------------------------------------------------------------------------ |
+| `Port`                   | The port which the service will run. The default is `22`                 |
+| `PermitRootLogin`        | Disabled by default. It's a good idea to keep it that way                |
+| `PubkeyAuthentication`   | Allows the use of keys as listed above                                   |
+| `PasswordAuthentication` | Enabled by default, but it's a good idea to disable once keys are set up |
+| `X11Forwarding`          | Allows/Denies forwarding of graphical applications                       |
+| `AllowUsers`             | Allows the admin to set who may login via ssh                            |
+### Copying files securely
+You can use `scp` which is essentially a file transfer option which uses `ssh` under the hood.
+### Syncing files securely
+You can use `rsync` which will use `ssh` under the hood to sync files or directories.
+## Time
+
+| Command       | Description                                                 |
+| ------------- | ----------------------------------------------------------- |
+| `hwclock`     | Used to set hardware time. It can also be used to sync time |
+| `timedatectl` | Used to manage time and time zone config                    |
+### Managing Time
+```bash
+root@rhcsa-server-01:~# timedatectl --help
+timedatectl [OPTIONS...] COMMAND ...
+
+Query or change system time and date settings.
+
+Commands:
+  status                   Show current time settings
+  show                     Show properties of systemd-timedated
+  set-time TIME            Set system time
+  set-timezone ZONE        Set system time zone
+  list-timezones           Show known time zones
+  set-local-rtc BOOL       Control whether RTC is in local time
+  set-ntp BOOL             Enable or disable network time synchronization
+
+systemd-timesyncd Commands:
+  timesync-status          Show status of systemd-timesyncd
+  show-timesync            Show properties of systemd-timesyncd
+  ntp-servers INTERFACE SERVER…
+                           Set the interface specific NTP servers
+  revert INTERFACE         Revert the interface specific NTP servers
+```
+### Managing NTP
+The default NTP service for RHEL is `chronyd`.
+The configuration is in `/etc/chrony.conf`.
+```bash
+root@rhcsa-server-01:~# cat /etc/chrony.conf 
+# Use public servers from the pool.ntp.org project.
+# Please consider joining the pool (https://www.pool.ntp.org/join.html).
+pool 2.rhel.pool.ntp.org iburst
+
+# Use NTP servers from DHCP.
+sourcedir /run/chrony-dhcp
+
+# Record the rate at which the system clock gains/losses time.
+driftfile /var/lib/chrony/drift
+
+# Allow the system clock to be stepped in the first three updates
+# if its offset is larger than 1 second.
+makestep 1.0 3
+
+# Enable kernel synchronization of the real-time clock (RTC).
+rtcsync
+# etc...
+```
+## SELinux
+### Why SELinux is used
+Default Linux security has a few flaws by default which SELinux attempts to solve.
+The basic principle is that if something isn't explicitly allowed, then it will be denied.
+- Unknown services will need additional configuration with SELinux for them to work.
+### SELinux Labels
+SELinux controls access using **labels (contexts)**.
+
+Format:
+```bash
+user:role:type:level
+           ^
+########################
+		This Part
+########################
+ls -laZ
+-rw-------. 1 bradley bradley unconfined_u:object_r:user_home_t:s0     8721 Apr 16 19:30 .bash_history
+
+```
+**Only the `type` matters for RHCSA** (ends in `_t`)
+
+You can view these labels with `Z` in a few commands.
+```bash
+ps auxZ | grep http
+```
+and 
+```bash
+ls -laZ
+```
+
+Common Context Examples
+
+|Item|Type Context|
+|---|---|
+|Apache process|`httpd_t`|
+|Web content|`httpd_sys_content_t`|
+|Temp files|`tmp_t`|
+|Web ports|`http_port_t`|
+|MariaDB process|`mysqld_t`|
+|MariaDB data|`mysqld_db_t`|
+**tldr**
+- Processes run in a type
+- Files have a type
+- SELinux policy defines what can talk to what (even if permissions are 777)
+```bash
+process_type → file_type → allowed?
+```
+**Example: Web Server (Apache)**
+- **Process**: `httpd_t`
+- **Web files**: `httpd_sys_content_t`
+```bash
+# ALLOWED
+httpd_t → httpd_sys_content_t
+```
+```bash
+# NOT ALLOWED
+httpd_t → tmp_t
+```
+### Managing SELinux Modes
+It's either `enabled` or `disabled`.
+
+When `enabled`.
+- `Enforcing`
+- `Permissive`
+
+You can manage the default in `/etc/sysconfig/selinux`.
+
+The command `getenforce` will show the current state.
+The command `setenforce` toggles between `Enforcing` and `Permissive`.
+### Managing labels
+You can repair the context of many default files with `restorecon`, but this will not work for completely new directories.
+You can manually set the context labels with `semanage fcontext -a` (new context label) or  `-m` (modify existing) which will write to the policy, but not the file-system. You must then use `restorecon` to enforce the change.
+
+> [!NOTE]
+> Using `man semanage-fcontext` is a good idea to check for examples
+### Managing SELinux Port Access
+Network ports are also provided with an SELinux context label.
+The ssh config file has a good reference.
+```bash
+# If you want to change the port on a SELinux system, you have to tell
+# SELinux about this change.
+# semanage port -a -t ssh_port_t -p tcp #PORTNUMBER
+```
+### Using boolean settings to modify SELinux
+
+| Command                         | Description                     |
+| ------------------------------- | ------------------------------- |
+| `semanage boolean -l`           | Get an overview of all booleans |
+| `setsebool -P <boolean> on\off` | Set the booleans                |
+| `getsebool -a`                  | Get the current settings        |
+### Troubleshooting SELinux
+SELinux uses `auditd` to write log messages to the audit log.
+- These may be difficult to interpret
+You can use `sealert` to try to get more meaningful messages from the logs.
+## Firewalls
+You can use `firewall-cmd` to make services available. You can add the `--permanent` to make changes persistently, but they don't apply to the runtime.
+A `firewalld` service is an `XML` file that contains info about ports and other features that must be allowed.
+Default services are in `/usr/lib/firewalld/services`.
+Custom services can be created in `/etc/firewalld/services`.
+- An easy way to create a custom service is to copy an existing service file from `/usr/lib/firewalld/services` to `/etc/firewalld/services` and modify it.
+
+| Command                                       | Description                                                         |
+| --------------------------------------------- | ------------------------------------------------------------------- |
+| `systemctl status firewalld`                  | Show whether the firewall is currently running.                     |
+| `firewall-cmd --list-all`                     | List everything added or enabled.                                   |
+| `firewall-cmd --get-services`                 | List all predefined service names.                                  |
+| `firewall-cmd --info-service=ssh`             | Get info on the predefined service for ssh                          |
+| `firewall-cmd --add-service=http`             | Enable http service in default zone.                                |
+| `firewall-cmd --add-service=http --permanent` | Enable http service in default zone persistently.                   |
+| `firewall-cmd --add-port 82/tcp --permanent`  | Opens port 82 (requires reloading the firewall after making change) |
+| `firewall-cmd --reload`                       | Reload the firewall                                                 |
+
+## Remote File-Systems and AutoFS
+### Configuring a NFS server
+
+> [!NOTE]
+> Not a task that is required for exam itself, but good to know and useful when you are setting up home labs
+
+Start off with installing **nfs-utils**
+```bash
+dnf install nfs-utils
+```
+Create some directories to share
+```bash
+mkdir -pv /nfsdata /home/ldapuser{1..9}
+```
+Create a share (for a lab, the permissions can be a little loose)
+```bash
+echo "/nfsdata *(rw,no_root_squash)" >> /etc/exports
+```
+```bash
+echo "/home/ldap *(rw,no_root_squash)" >> /etc/exports
+```
+Verify the contents
+```bash
+root@rhcsa-server-02:/repo# cat /etc/exports
+/nfsdata *(rw,no_root_squash)
+/home/ldap *(rw,no_root_squash)
+```
+Enable the service
+```bash
+systemctl enable --now nfs-server.service
+```
+Allow the services through the firewall
+```bash
+root@rhcsa-server-02:/repo# firewall-cmd --add-service=rpc-bind --permanent 
+success
+root@rhcsa-server-02:/repo# firewall-cmd --add-service=mountd --permanent 
+success
+root@rhcsa-server-02:/repo# firewall-cmd --add-service=nfs --permanent 
+success
+```
+Reload the firewall and verify they are present in the rules
+```bash
+root@rhcsa-server-02:/repo# firewall-cmd --reload 
+success
+root@rhcsa-server-02:/repo# firewall-cmd --list-all
+public (default, active)
+  target: default
+  ingress-priority: 0
+  egress-priority: 0
+  icmp-block-inversion: no
+  interfaces: enp1s0
+  sources: 
+  services: cockpit dhcpv6-client mountd nfs rpc-bind ssh
+  ports: 
+  protocols: 
+  forward: yes
+  masquerade: no
+  forward-ports: 
+  source-ports: 
+  icmp-blocks: 
+  rich rules: 
+```
+### Mounting NFS Shares
+First, make sure **nfs-utils** are installed on the client.
+```bash
+dnf install nfs-utils
+```
+To discover what's available, you can use the following command.
+```bash
+showmount -e <server-ip>
+```
+
+```bash
+root@rhcsa-server-01:/mnt# showmount -e 192.168.100.44
+Export list for 192.168.100.44:
+/home/ldap *
+/nfsdata   *
+```
+
+You can mount the share temporarily with:
+```bash
+mount <server-ip>:/<share-name> /mnt
+```
+You can also mount via `fstab`:
+```bash
+root@rhcsa-server-01:/mnt# cat /etc/fstab 
+#
+# /etc/fstab
+# Created by anaconda on Mon Mar 16 01:26:19 2026
+#
+# Accessible filesystems, by reference, are maintained under '/dev/disk/'.
+# See man pages fstab(5), findfs(8), mount(8) and/or blkid(8) for more info.
+#
+# After editing this file, run 'systemctl daemon-reload' to update systemd
+# units generated from this file.
+#
+UUID=47b2eee4-5f8d-42d6-9746-01a3681f5c0f /                       xfs     defaults        0 0
+UUID=90c4ef48-c9a8-461b-81d5-9089dbb3b7ea /boot                   xfs     defaults        0 0
+UUID=99e1d6b4-4ae6-47ba-87ca-2c59073eed00 none                    swap    defaults        0 0
+UUID=2f726ee7-9cfd-4432-8236-fde65dbab62c /mounts/lvdb            xfs     defaults        0 0
+192.168.100.44:/nfsdata  		  /mnt  		  nfs     defaults       0 0
+```
+### Configuring Automount
+Start off with making sure `autofs` is installed
+```bash
+dnf install autofs
+```
+Start and enable the service.
+```bash
+systemctl enable --now autofs
+```
+Check the `/etc/auto.master` file
+```bash
+root@rhcsa-server-01:/etc# cat /etc/auto.master
+#
+# Sample auto.master file
+# This is a 'master' automounter map and it has the following format:
+# mount-point [map-type[,format]:]map [options]
+# For details of the format look at auto.master(5).
+#
+/misc	/etc/auto.misc
+#
+```
+It points to `/etc/auto.misc`
+```bash
+root@rhcsa-server-01:/etc# cat /etc/auto.misc 
+#
+# This is an automounter map and it has the following format
+# key [ -mount-options-separated-by-comma ] location
+# Details may be found in the autofs(5) manpage
+
+cd		-fstype=iso9660,ro,nosuid,nodev	:/dev/cdrom
+
+# the following entries are samples to pique your imagination
+#linux		-ro,soft		ftp.example.org:/pub/linux
+#boot		-fstype=ext2		:/dev/hda1
+#floppy		-fstype=auto		:/dev/fd0
+#floppy		-fstype=ext2		:/dev/fd0
+#e2floppy	-fstype=ext2		:/dev/fd0
+#jaz		-fstype=ext2		:/dev/sdc1
+#removable	-fstype=ext2		:/dev/hdd
+```
+The above line containing `#linux		-ro,soft		ftp.example.org:/pub/linux` is an NFS example.
+We can create a new autofs mount for nfs by editing `/etc/auto.master` and adding the following.
+```bash
+#
+# Sample auto.master file
+# This is a 'master' automounter map and it has the following format:
+# mount-point [map-type[,format]:]map [options]
+# For details of the format look at auto.master(5).
+#
+/misc   /etc/auto.misc
+/nfsdata /etc/auto.nfsdata
+#
+```
+And then creating `/etc/auto.nfsdata`.
+```bash
+root@rhcsa-server-01:/etc# touch /etc/auto.nfsdata
+root@rhcsa-server-01:/etc# ls -la | grep auto
+-rw-r--r--.   1 root                 root                  16240 May 11  2025 autofs.conf
+-rw-------.   1 root                 root                    232 May 11  2025 autofs_ldap_auth.conf
+-rw-r--r--.   1 root                 root                   1316 Apr 21 15:10 auto.master
+drwxr-xr-x.   2 root                 root                      6 May 11  2025 auto.master.d
+-rw-r--r--.   1 root                 root                    519 May 11  2025 auto.misc
+-rwxr-xr-x.   1 root                 root                    901 May 11  2025 auto.net
+-rw-r--r--.   1 root                 root                      0 Apr 21 15:12 auto.nfsdata
+-rwxr-xr-x.   1 root                 root                   2087 May 11  2025 auto.smb
+```
+And using the `auto.misc` as a reference, edit the new config.
+`server2` in this example is just the local mount name.
+```bash
+root@rhcsa-server-01:/etc# cat auto.nfsdata 
+server2		-rw		192.168.100.44:/nfsdata
+```
+Then, restart the service and verify that it is present
+```bash
+root@rhcsa-server-01:/etc# systemctl restart autofs.service 
+root@rhcsa-server-01:/nfsdata# cd server2/
+root@rhcsa-server-01:/nfsdata/server2# ls -la
+total 0
+drwxr-xr-x. 3 root root 174 Apr 21 14:08 .
+drwxr-xr-x. 4 root root   0 Apr 21 15:37 ..
+drwxr-xr-x. 2 root root  24 Apr 21 15:34 testdir
+-rw-r--r--. 1 root root   0 Apr 21 14:08 testfile1
+-rw-r--r--. 1 root root   0 Apr 21 14:08 testfile2
+-rw-r--r--. 1 root root   0 Apr 21 14:08 testfile3
+-rw-r--r--. 1 root root   0 Apr 21 14:08 testfile4
+-rw-r--r--. 1 root root   0 Apr 21 14:08 testfile5
+-rw-r--r--. 1 root root   0 Apr 21 14:08 testfile6
+-rw-r--r--. 1 root root   0 Apr 21 14:08 testfile7
+-rw-r--r--. 1 root root   0 Apr 21 14:08 testfile8
+-rw-r--r--. 1 root root   0 Apr 21 14:08 testfile9
+```
+You can also verify with `mount`
+```bash
+root@rhcsa-server-01:/# mount | grep nfs
+/etc/auto.nfsdata on /nfsdata type autofs (rw,relatime,fd=9,pgrp=9496,timeout=300,minproto=5,maxproto=5,indirect,pipe_ino=42259)
+192.168.100.44:/nfsdata on /nfsdata/testdir type nfs4 (rw,relatime,vers=4.2,rsize=1048576,wsize=1048576,namlen=255,hard,fatal_neterrors=none,proto=tcp,timeo=600,retrans=2,sec=sys,clientaddr=192.168.100.192,local_lock=none,addr=192.168.100.44)
+192.168.100.44:/nfsdata on /nfsdata/server2 type nfs4 (rw,relatime,vers=4.2,rsize=1048576,wsize=1048576,namlen=255,hard,fatal_neterrors=none,proto=tcp,timeo=600,retrans=2,sec=sys,clientaddr=192.168.100.192,local_lock=none,addr=192.168.100.44)
+```
