@@ -1140,11 +1140,17 @@ It also starts other units: timers, sockets, sshd, mounting items, etc...
 The primary command used to manage Systemd is `systemctl`.
 ### Exploring Systemd Units
 `Service` units are used to start processes (These are the most important). 
+
 `Socket` units monitor activity on a port and start the corresponding service unit when needed.
+
 `Timer` units are used to start services periodically.
+
 `Path` units can start service units when activity is detected in the file system.
+
 `Mount` units are used to mount file systems.
+
 There are more units, but they are not as relevant for the RHCSA exam.
+
 You can use `cat` in combination with `systemctl` to get info on a unit.
 ```bash
 student@rhcsaserver:~$ systemctl cat sshd.service 
@@ -1468,8 +1474,11 @@ student@rhcsaserver:~$ sudo systemctl edit raid-check.timer
 ```
 ### cron jobs
 The is the OG for scheduling and has been around for a while.
+
 The `crond` process checks its config every minute in the `/etc/crontab` file.
+
 For drop in cron files, they should be placed in `/etc/cron.d/` or one of the following.
+
 For `cron.d`, the files need the correct syntax... for the `hourly`, `daily`, `etc...` you can just put a script as long as it's executable.
 ```bash
 student@rhcsaserver:/etc$ cd cron.
@@ -1498,6 +1507,7 @@ MAILTO=root
 ```
 
 **anacron** is the service behind **cron** that ensures jobs are executed on a regular basis.
+
 It takes care of all the jobs and the configuration is in `/etc/anacron`, but really shouldn't be edited.
 ### at
 Before `at` can do its thing, the `atd` service must be running.
@@ -1522,7 +1532,9 @@ student@rhcsaserver:/etc$
 ```
 ### Managing temporary files
 Temporary files have **historically** been placed in `/tmp`. Without management, this directory could become quite bloated.
+
 Nowadays, we use `systemd-tmpfiles` to manage temp files and directories.
+
 - This will create/delete temp files automatically according to the files in the following locations.
 	- `/usr/lib/tmpfiles.d/`
 	- `/etc/tmpfiles.d`
@@ -1549,6 +1561,7 @@ Explanation of the line:
 ## Configuring Logging
 ### systemd-journald
 This is the primary method for logging on RHEL 10.
+
 This receives logs from several locations and by default, **is not persistent**.
 - kernel
 - boot procedures
@@ -1577,6 +1590,7 @@ Apr 06 16:28:18 rhcsaserver.example.com sshd[1295]: Server listening on :: port 
 Apr 06 16:28:18 rhcsaserver.example.com systemd[1]: Started sshd.service - OpenSSH server daemon.
 ```
 You can also run `journalctl` which prints the entire journal.
+
 You can also use different options. A few examples are:
 
 | Command                      | Description                                                       |
@@ -1595,7 +1609,9 @@ If you want the journal itself to retain logs persistently, modify the configura
 
 ### rsyslogd
 The `rsyslogd` service must be running for log collection and forwarding to function properly.
+
 The main configuration file is located at `/etc/rsyslog.conf`, with additional drop-in configurations supported in `/etc/rsyslog.d/`.
+
 Each rsyslog rule consists of three components:
 - **Facility** – identifies the source or category of the log (e.g., `auth`, `cron`, `daemon`)
 - **Severity** – defines the level of importance to capture (e.g., `info`, `warning`, `err`)
